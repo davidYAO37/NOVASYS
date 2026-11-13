@@ -1,0 +1,59 @@
+:root {
+  --novasys-primary: #1a5276;
+  --novasys-secondary: #2874a6;
+  --novasys-accent: #148f77;
+}
+
+body {
+  background-color: #f4f6f9;
+}
+
+.login-background {
+  background: linear-gradient(135deg, var(--novasys-primary) 0%, var(--novasys-secondary) 100%);
+}
+
+.sidebar-novasys {
+  background-color: var(--novasys-primary);
+  min-height: 100vh;
+  color: #fff;
+}
+
+.sidebar-novasys .nav-link {
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+  margin-bottom: 2px;
+}
+
+.sidebar-novasys .nav-link:hover,
+.sidebar-novasys .nav-link.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.sidebar-novasys .sidebar-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 1rem 0 0.25rem 0.75rem;
+}
+
+.card-stat {
+  border-left: 4px solid var(--novasys-secondary);
+}
+
+.badge-statut {
+  font-size: 0.78rem;
+}
+
+.table-novasys thead th {
+  background-color: var(--novasys-primary);
+  color: #fff;
+  white-space: nowrap;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

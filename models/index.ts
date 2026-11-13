@@ -1,0 +1,26 @@
+// Enregistrement central de tous les modèles Mongoose NOVASYS
+export { User } from "./users.model";
+export { Profil } from "./profil";
+export { Entreprise } from "./entreprise";
+export { Client } from "./client";
+export { Fournisseur } from "./fournisseur";
+export { Commande } from "./commande";
+export { LigneCde } from "./ligneCde";
+export { Achat } from "./achat";
+export { LigneAchat } from "./ligneAchat";
+export { FactureClient } from "./factureClient";
+export { LigneFacture } from "./ligneFacture";
+export { PaiementClient } from "./paiementClient";
+export { ReglementFournisseur } from "./reglementFournisseur";
+export { PaiementFournisseur } from "./paiementFournisseur";
+export { DocumentDevis } from "./documentDevis";
+export { AnnuleeHistorique } from "./annuleeHistorique";
+export { Article } from "./article";
+export { Famille } from "./famille";
+export { Stock } from "./stock";
+export { EntreeStock } from "./entreeStock";
+export { SortieStock } from "./sortieStock";
+export { Caisse } from "./caisse";
+export { Operation } from "./operation";
+export { Licence, DateControle } from "./licence";
+export { JournalConnexion } from "./journalConnexion";
