@@ -62,9 +62,9 @@ export default function DetailFacturePage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-          <h3 className="mb-0">Facture {facture.numFacture}</h3>
+          <h3 className="mb-0 titre-page">Facture {facture.numFacture}</h3>
           <Badge bg={statut?.color || "secondary"}>{statut?.label || facture.statutC}</Badge>{" "}
           <small className="text-muted">BL : {facture.numBonFacture} — Commande : {facture.numCommande}</small>
         </div>
@@ -158,7 +158,7 @@ export default function DetailFacturePage() {
         </Card>
       )}
 
-      <div className="d-flex justify-content-between align-items-center">
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div className="fs-5">
           Total TTC : <strong>{fmtMontant(facture.totalTTC)} {facture.deviseM}</strong>
           {" — "}Reste : <strong className="text-warning">{fmtMontant(facture.resteAPaye)}</strong>

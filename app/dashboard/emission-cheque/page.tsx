@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
+import { Badge, Button, Card, Col, Form, InputGroup, Modal, Row, Table } from "react-bootstrap";
 import axios from "axios";
 import dayjs from "dayjs";
 import { fmtDate, fmtMontant, MODES_REGLEMENT } from "@/lib/format";
+import FicheFournisseurModal from "@/components/tiers/FicheFournisseurModal";
 
 /**
  * GESTION D'ÉMISSION DE CHÈQUE (FEN_EMISSION_DE_CHEQUE) :
@@ -23,6 +24,7 @@ export default function EmissionChequePage() {
   // Nouvelle émission
   const [showNew, setShowNew] = useState(false);
   const [fournisseurId, setFournisseurId] = useState("");
+  const [showFournisseur, setShowFournisseur] = useState(false);
   const [achatsDispo, setAchatsDispo] = useState<any[]>([]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [form, setForm] = useState({ banque: "", numCheque: "", alOrdreDe: "", delaisDeReglement: "", modeReglement: "Chèque" });
@@ -31,6 +33,11 @@ export default function EmissionChequePage() {
   const [showDec, setShowDec] = useState(false);
   const [emissionSel, setEmissionSel] = useState<any>(null);
   const [dec, setDec] = useState({ montantPaye: 0, modeReglement: "Chèque", banque: "", numCheque: "" });
+
+  // Renvoi au service achat
+  const [renvoiSel, setRenvoiSel] = useState<any>(null);
+  const [motifRenvoi, setMotifRenvoi] = useState("");
+  const [erreurRenvoi, setErreurRenvoi] = useState("");
 
   const charger = useCallback(() => {
     axios.get("/api/emissions", { params: { du, au } })
@@ -92,12 +99,24 @@ export default function EmissionChequePage() {
     }
   };
 
+  const renvoyer = async () => {
+    setErreurRenvoi("");
+    try {
+      await axios.post(`/api/emissions/${renvoiSel._id}/renvoi`, { motif: motifRenvoi });
+      setRenvoiSel(null);
+      charger();
+    } catch (e: any) {
+      setErreurRenvoi(e.response?.data?.message || "Erreur lors du renvoi");
+    }
+  };
+
   const peutDecaisser = ["admin", "adminsuper", "comptable", "caisse"].includes(me?.type);
+  const peutRenvoyer = ["admin", "adminsuper", "comptable"].includes(me?.type);
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Gestion d&apos;émission de chèque</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Gestion d&apos;émission de chèque</h3>
         <Button onClick={() => setShowNew(true)}>
           <i className="bi bi-plus-lg me-1"></i>Nouvelle émission
         </Button>
@@ -106,11 +125,11 @@ export default function EmissionChequePage() {
       <Card className="shadow-sm mb-3">
         <Card.Body>
           <Row className="g-2 align-items-end">
-            <Col md={3}><Form.Label>Du</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Du</Form.Label>
               <Form.Control type="date" value={du} onChange={(e) => setDu(e.target.value)} /></Col>
-            <Col md={3}><Form.Label>Au</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Au</Form.Label>
               <Form.Control type="date" value={au} onChange={(e) => setAu(e.target.value)} /></Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Button variant="outline-primary" onClick={charger}>
                 <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>
@@ -143,12 +162,25 @@ export default function EmissionChequePage() {
                 <td>
                   {e.statut === "decaisse"
                     ? <Badge bg="success">Décaissé</Badge>
-                    : <Badge bg="info">Transféré compta</Badge>}
+                    : e.statut === "renvoyee"
+                      ? (
+                        <>
+                          <Badge bg="warning" text="dark" title={e.motifRenvoi}>Renvoyée</Badge>
+                          {e.motifRenvoi && <div className="small text-muted mt-1">{e.motifRenvoi}</div>}
+                        </>
+                      )
+                      : <Badge bg="info">Transféré compta</Badge>}
                 </td>
                 <td>
-                  {e.statut !== "decaisse" && peutDecaisser && (
+                  {e.statut !== "decaisse" && e.statut !== "renvoyee" && peutDecaisser && (
                     <Button size="sm" variant="outline-success" onClick={() => ouvrirDecaissement(e)}>
                       <i className="bi bi-cash me-1"></i>Décaisser
+                    </Button>
+                  )}
+                  {e.statut !== "decaisse" && e.statut !== "renvoyee" && !(e.totalPaye > 0) && peutRenvoyer && (
+                    <Button size="sm" variant="outline-warning" title="Renvoyer au service achat"
+                      onClick={() => { setRenvoiSel(e); setMotifRenvoi(""); setErreurRenvoi(""); }}>
+                      <i className="bi bi-arrow-return-left me-1"></i>Renvoyer
                     </Button>
                   )}
                 </td>
@@ -162,45 +194,50 @@ export default function EmissionChequePage() {
       </Card>
 
       {/* Nouvelle émission */}
-      <Modal show={showNew} onHide={() => setShowNew(false)} size="xl">
+      <Modal show={showNew} onHide={() => setShowNew(false)} size="xl" fullscreen="md-down">
         <Modal.Header closeButton>
           <Modal.Title>Nouvelle émission de chèque</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <Row className="g-3 mb-3">
-            <Col md={4}>
+            <Col xs={12} sm={6} md={4}>
               <Form.Label>Fournisseur *</Form.Label>
-              <Form.Select value={fournisseurId} onChange={(e) => chargerAchats(e.target.value)}>
-                <option value="">— Sélectionner —</option>
-                {fournisseurs.map((f) => <option key={f._id} value={f._id}>{f.nomPren}</option>)}
-              </Form.Select>
+              <InputGroup>
+                <Form.Select value={fournisseurId} onChange={(e) => chargerAchats(e.target.value)}>
+                  <option value="">— Sélectionner —</option>
+                  {fournisseurs.map((f) => <option key={f._id} value={f._id}>{f.nomPren}</option>)}
+                </Form.Select>
+                <Button variant="outline-primary" title="Ajouter un fournisseur" onClick={() => setShowFournisseur(true)}>
+                  <i className="bi bi-plus-lg"></i>
+                </Button>
+              </InputGroup>
             </Col>
-            <Col md={2}>
+            <Col xs={12} sm={6} md={2}>
               <Form.Label>Mode de règlement</Form.Label>
               <Form.Select value={form.modeReglement} onChange={(e) => setForm({ ...form, modeReglement: e.target.value })}>
                 {MODES_REGLEMENT.map((m) => <option key={m}>{m}</option>)}
               </Form.Select>
             </Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Form.Label>Banque</Form.Label>
               <Form.Control value={form.banque} onChange={(e) => setForm({ ...form, banque: e.target.value })} />
             </Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Form.Label>N° Chèque</Form.Label>
               <Form.Control value={form.numCheque} onChange={(e) => setForm({ ...form, numCheque: e.target.value })} />
             </Col>
-            <Col md={4}>
+            <Col xs={12} sm={6} md={4}>
               <Form.Label>À l&apos;ordre de</Form.Label>
               <Form.Control value={form.alOrdreDe} onChange={(e) => setForm({ ...form, alOrdreDe: e.target.value })} />
             </Col>
-            <Col md={4}>
+            <Col xs={12} sm={6} md={4}>
               <Form.Label>Délai de règlement</Form.Label>
               <Form.Control value={form.delaisDeReglement} onChange={(e) => setForm({ ...form, delaisDeReglement: e.target.value })} />
             </Col>
           </Row>
 
           <div className="mb-2 fw-semibold">Bons de commande transférés (cochez ceux à payer) :</div>
-          <Table size="sm" hover>
+          <Table responsive size="sm" hover>
             <thead>
               <tr><th style={{ width: 40 }}></th><th>N° Bon</th><th>Date</th>
                 <th>N° Devis</th><th className="text-end">Total TTC</th></tr>
@@ -269,6 +306,39 @@ export default function EmissionChequePage() {
           <Button variant="success" onClick={decaisser}>Valider le décaissement</Button>
         </Modal.Footer>
       </Modal>
+
+      {/* Renvoi au service achat */}
+      <Modal show={!!renvoiSel} onHide={() => setRenvoiSel(null)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Renvoyer l&apos;émission {renvoiSel?.numEmission} au service achat</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {erreurRenvoi && <div className="alert alert-danger">{erreurRenvoi}</div>}
+          <p>Fournisseur : <strong>{renvoiSel?.fournisseur}</strong><br />
+            Montant : <strong>{fmtMontant(renvoiSel?.montantTotal)} FCFA</strong></p>
+          <Form.Group>
+            <Form.Label>Motif du renvoi *</Form.Label>
+            <Form.Control as="textarea" rows={3} value={motifRenvoi}
+              onChange={(e) => setMotifRenvoi(e.target.value)} />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setRenvoiSel(null)}>Annuler</Button>
+          <Button variant="warning" onClick={renvoyer} disabled={!motifRenvoi.trim()}>
+            Renvoyer
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      <FicheFournisseurModal
+        show={showFournisseur}
+        onHide={() => setShowFournisseur(false)}
+        onSaved={(nouveau) => {
+          setFournisseurs((fs) => [nouveau, ...fs]);
+          chargerAchats(nouveau._id);
+          setShowFournisseur(false);
+        }}
+      />
     </div>
   );
 }

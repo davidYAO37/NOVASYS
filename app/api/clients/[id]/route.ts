@@ -4,19 +4,20 @@ import { db } from "@/db/mongoConnect";
 import { Client } from "@/models/client";
 import { FactureClient } from "@/models/factureClient";
 import { PaiementClient } from "@/models/paiementClient";
+import { peutVoirCreateur } from "@/lib/portee";
 
 const ROLES = ["admin", "commercial", "caisse", "comptable"];
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(req: NextRequest, ctx: Ctx) {
-  const { error } = await requireAuth(req, ROLES);
+  const { user, error } = await requireAuth(req, ROLES);
   if (error) return error;
   await db();
 
   const { id } = await ctx.params;
   const client = await Client.findById(id).lean();
-  if (!client) {
+  if (!client || !peutVoirCreateur(user, client)) {
     return NextResponse.json({ message: "Client introuvable" }, { status: 404 });
   }
 
@@ -34,6 +35,12 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const data = await req.json();
+  delete data.saisiePar;
+  delete data.creerPar;
+  const existant = await Client.findById(id).select("creerPar").lean();
+  if (!existant || !peutVoirCreateur(user, existant)) {
+    return NextResponse.json({ message: "Client introuvable" }, { status: 404 });
+  }
   const client = await Client.findByIdAndUpdate(
     id,
     { ...data, modifiePar: `${user.nom} ${user.prenom}`.trim() },
@@ -46,11 +53,15 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const { error } = await requireAuth(req, ["admin"]);
+  const { user, error } = await requireAuth(req, ["admin"]);
   if (error) return error;
   await db();
 
   const { id } = await ctx.params;
+  const client = await Client.findById(id).select("creerPar").lean();
+  if (client && !peutVoirCreateur(user, client)) {
+    return NextResponse.json({ message: "Client introuvable" }, { status: 404 });
+  }
   const nbFactures = await FactureClient.countDocuments({ clientId: id });
   if (nbFactures > 0) {
     return NextResponse.json(

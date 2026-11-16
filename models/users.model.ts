@@ -11,6 +11,7 @@ export interface IUser extends Document {
   email: string; // correspond au "Login" WinDev
   password?: string;
   type?: string; // correspond au profil WinDev (admin, commercial, achat, comptable, caisse)
+  codeProforma?: string;
   uid?: string;
   profilId?: Types.ObjectId;
   comptebloque?: boolean;
@@ -35,6 +36,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String },
     type: { type: String, default: "commercial" },
+    codeProforma: { type: String },
     uid: { type: String, unique: true, sparse: true },
     profilId: { type: Schema.Types.ObjectId, ref: "Profil" },
     comptebloque: { type: Boolean, default: false },

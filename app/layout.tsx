@@ -8,6 +8,11 @@ export const metadata = {
   description: 'Interface de gestion commerciale NOVASYS',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" data-scroll-behavior="smooth">

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button, Card, Col, Form, Row, Table } from "react-bootstrap";
+import { Button, Card, Col, Form, InputGroup, Row, Table } from "react-bootstrap";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import dayjs from "dayjs";
 import { fmtMontant, MODES_REGLEMENT } from "@/lib/format";
+import FicheClientModal from "@/components/tiers/FicheClientModal";
 
 /**
  * NOUVELLE FACTURE : choisir le client / la proforma, vérifier les lignes,
@@ -16,6 +17,7 @@ export default function NouvelleFacturePage() {
   const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
   const [clientId, setClientId] = useState("");
+  const [showClient, setShowClient] = useState(false);
   const [commandes, setCommandes] = useState<any[]>([]);
   const [commandeId, setCommandeId] = useState("");
   const [commande, setCommande] = useState<any>(null);
@@ -113,8 +115,8 @@ export default function NouvelleFacturePage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Nouvelle facture</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Nouvelle facture</h3>
         <Button variant="outline-secondary" onClick={() => router.push("/dashboard/factures")}>
           <i className="bi bi-arrow-left me-1"></i>Retour
         </Button>
@@ -127,10 +129,15 @@ export default function NouvelleFacturePage() {
           <Row className="g-3">
             <Col md={3}>
               <Form.Label>Choisir le client *</Form.Label>
-              <Form.Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                <option value="">— Sélectionner —</option>
-                {clients.map((c) => <option key={c._id} value={c._id}>{c.nomPren}</option>)}
-              </Form.Select>
+              <InputGroup>
+                <Form.Select value={clientId} onChange={(e) => setClientId(e.target.value)}>
+                  <option value="">— Sélectionner —</option>
+                  {clients.map((c) => <option key={c._id} value={c._id}>{c.nomPren}</option>)}
+                </Form.Select>
+                <Button variant="outline-primary" title="Ajouter un client" onClick={() => setShowClient(true)}>
+                  <i className="bi bi-plus-lg"></i>
+                </Button>
+              </InputGroup>
             </Col>
             <Col md={3}>
               <Form.Label>Proforma / Commande</Form.Label>
@@ -229,7 +236,7 @@ export default function NouvelleFacturePage() {
               </Button>
             </Col>
             <Col md={6}>
-              <Table size="sm" className="mb-0">
+              <Table responsive size="sm" className="mb-0">
                 <tbody>
                   <tr><td>Total HT</td><td className="text-end fw-bold">{fmtMontant(totaux.totalHT)}</td></tr>
                   <tr><td>TVA ({taux}%)</td><td className="text-end">{fmtMontant(totaux.totalTVA)}</td></tr>
@@ -245,6 +252,19 @@ export default function NouvelleFacturePage() {
           </Row>
         </Card.Body>
       </Card>
+
+      <FicheClientModal
+        show={showClient}
+        onHide={() => setShowClient(false)}
+        onSaved={(nouveau) => {
+          setClients((cs) => [nouveau, ...cs]);
+          setClientId(nouveau._id);
+          setCommandeId("");
+          setCommande(null);
+          setLignes([]);
+          setShowClient(false);
+        }}
+      />
     </div>
   );
 }

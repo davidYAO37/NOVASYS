@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, CurrentUser } from "@/lib/auth";
 import { db } from "@/db/mongoConnect";
 import { Entreprise } from "@/models/entreprise";
 import { FactureClient } from "@/models/factureClient";
@@ -12,6 +12,7 @@ import { Client } from "@/models/client";
 import { Fournisseur } from "@/models/fournisseur";
 import { PaiementClient } from "@/models/paiementClient";
 import { genererDocumentPdf, DonneesDocumentPdf } from "@/lib/pdf/documents";
+import { peutVoirSaisie } from "@/lib/portee";
 
 /**
  * Génération PDF des états NOVASYS :
@@ -31,7 +32,7 @@ const ROLES: Record<string, string[]> = {
   recu: ["admin", "caisse", "comptable"],
 };
 
-async function construireDonnees(type: string, id: string): Promise<DonneesDocumentPdf | null> {
+async function construireDonnees(type: string, id: string, user: CurrentUser): Promise<DonneesDocumentPdf | null> {
   switch (type) {
     case "facture":
     case "bl": {
@@ -75,7 +76,7 @@ async function construireDonnees(type: string, id: string): Promise<DonneesDocum
 
     case "proforma": {
       const c = await Commande.findById(id).lean();
-      if (!c) return null;
+      if (!c || !peutVoirSaisie(user, c)) return null;
       const lignes = await LigneCde.find({ commandeId: c._id }).lean();
       const client = c.clientId ? await Client.findById(c.clientId).lean() : null;
       const infos = [
@@ -85,7 +86,7 @@ async function construireDonnees(type: string, id: string): Promise<DonneesDocum
       ].filter(Boolean).join("\n");
       return {
         titre: "Facture proforma",
-        numero: c.numCommande,
+        numero: c.numComm || c.numCommande,
         date: c.dateCommande,
         devise: c.deviseM,
         tiers: {
@@ -205,12 +206,12 @@ export async function GET(
   if (!ROLES[type]) {
     return NextResponse.json({ message: "Type de document inconnu" }, { status: 404 });
   }
-  const { error } = await requireAuth(req, ROLES[type]);
+  const { user, error } = await requireAuth(req, ROLES[type]);
   if (error) return error;
   await db();
 
   try {
-    const data = await construireDonnees(type, id);
+    const data = await construireDonnees(type, id, user);
     if (!data) return NextResponse.json({ message: "Document introuvable" }, { status: 404 });
 
     const entreprise = await Entreprise.findOne().lean();

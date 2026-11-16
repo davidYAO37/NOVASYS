@@ -40,6 +40,10 @@ export interface IAchat extends Document {
   agentUtilisateur?: string;
   paiementFournisseurId?: Types.ObjectId;
   deviseM?: string;
+  renvoyeCompta?: boolean;
+  motifRenvoi?: string;
+  renvoyeLe?: Date;
+  renvoyePar?: string;
 }
 
 const AchatSchema = new Schema<IAchat>(
@@ -73,6 +77,10 @@ const AchatSchema = new Schema<IAchat>(
     agentUtilisateur: { type: String },
     paiementFournisseurId: { type: Schema.Types.ObjectId, ref: "ReglementFournisseur" },
     deviseM: { type: String, default: "FCFA" },
+    renvoyeCompta: { type: Boolean, default: false },
+    motifRenvoi: { type: String },
+    renvoyeLe: { type: Date },
+    renvoyePar: { type: String },
   },
   { timestamps: true, collection: "achats" }
 );

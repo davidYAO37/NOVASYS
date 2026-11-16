@@ -19,6 +19,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   for (const k of ["nom", "prenom", "type", "comptebloque", "profilId"]) {
     if (data[k] !== undefined) update[k] = data[k];
   }
+  if (data.codeProforma !== undefined) {
+    const code = (data.codeProforma || "").trim().toUpperCase();
+    update.codeProforma = /^[A-Z0-9]{1,10}$/.test(code) ? code : "";
+  }
   if (data.nom !== undefined || data.prenom !== undefined) {
     update.name = `${data.nom || ""} ${data.prenom || ""}`.trim();
   }

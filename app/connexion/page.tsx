@@ -90,10 +90,17 @@ export default function ConnexionPage() {
     <Container fluid className="vh-100 d-flex justify-content-center align-items-center login-background">
       <Row className="w-100">
         <Col md={{ span: 6, offset: 3 }} lg={{ span: 4, offset: 4 }}>
-          <Card className="p-4 shadow-lg border-0 bg-white bg-opacity-75">
+          <Card className="p-4 shadow-lg border-0 login-card">
             <Card.Body>
-              <h2 className="text-center mb-1" style={{ color: 'var(--novasys-primary)' }}>NOVASYS</h2>
-              <p className="text-center text-muted mb-4">Gestion commerciale — Connexion</p>
+              <div className="text-center mb-2">
+                <span className="login-logo-tile">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/brand/novasys-logo.jpg" alt="NOVASYS" style={{ maxWidth: 170, maxHeight: 90, objectFit: "contain" }} />
+                </span>
+              </div>
+              <p className="text-center text-muted mb-4" style={{ letterSpacing: "0.06em" }}>
+                <small>WE SECURE YOUR BUSINESS</small><br />Gestion commerciale — Connexion
+              </p>
 
               {message && (
                 <div className={`alert alert-${messageType} d-flex align-items-center mb-4`}>
@@ -133,7 +140,7 @@ export default function ConnexionPage() {
                 <Form.Group className="mb-3">
                   <Form.Label>Identifiant (email)</Form.Label>
                   <Form.Control
-                    type="email"
+                    aria-label="Email" type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -142,7 +149,7 @@ export default function ConnexionPage() {
                 <Form.Group className="mb-4">
                   <Form.Label>Mot de passe</Form.Label>
                   <Form.Control
-                    type="password"
+                    aria-label="Mot de passe" type="password"
                     value={motDePasse}
                     onChange={(e) => setMotDePasse(e.target.value)}
                     required

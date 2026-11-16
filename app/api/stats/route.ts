@@ -7,6 +7,7 @@ import { Achat } from "@/models/achat";
 import { Client } from "@/models/client";
 import { Fournisseur } from "@/models/fournisseur";
 import { Stock } from "@/models/stock";
+import { filtreSaisie, filtreCreateur } from "@/lib/portee";
 
 /**
  * Bilan de l'écran d'accueil (FEN_MENU WinDev) :
@@ -19,9 +20,8 @@ export async function GET(req: NextRequest) {
 
   await db();
 
-  const saisiePar = `${user.nom} ${user.prenom}`.trim();
-  const isAdmin = user.type === "admin" || user.type === "adminsuper";
-  const filtreCommercial = isAdmin ? {} : { saisiePar };
+  const filtreCommercial = filtreSaisie(user);
+  const filtreTiers = filtreCreateur(user);
 
   const [
     totalEnregistrees,
@@ -38,20 +38,26 @@ export async function GET(req: NextRequest) {
   ] = await Promise.all([
     Commande.countDocuments(filtreCommercial),
     Commande.countDocuments({ ...filtreCommercial, serviceAchat: true }),
-    Commande.countDocuments({ ...filtreCommercial, statutC: "en_cours" }),
+    Commande.countDocuments({
+      ...filtreCommercial,
+      statutC: { $in: ["en_cours", "partielle"] },
+    }),
     Commande.countDocuments({ ...filtreCommercial, statutC: "traitee" }),
     Commande.countDocuments({ ...filtreCommercial, serviceAchat: { $ne: true } }),
     FactureClient.aggregate([
+      { $match: filtreCommercial },
       { $group: { _id: null, total: { $sum: "$totalTTC" } } },
     ]),
     Client.aggregate([
+      { $match: filtreTiers },
       { $group: { _id: null, total: { $sum: "$resteAPaye" } } },
     ]),
     Fournisseur.aggregate([
+      { $match: filtreTiers },
       { $group: { _id: null, total: { $sum: "$resteAPaye" } } },
     ]),
-    Client.countDocuments(),
-    Fournisseur.countDocuments(),
+    Client.countDocuments(filtreTiers),
+    Fournisseur.countDocuments(filtreTiers),
     Stock.countDocuments({
       $expr: { $lte: ["$qteEnStock", "$seuilAlerte"] },
       seuilAlerte: { $gt: 0 },

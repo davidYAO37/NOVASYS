@@ -83,7 +83,7 @@ export default function LicencePage() {
 
   return (
     <div style={{ maxWidth: 960 }}>
-      <h3 className="mb-3">Licence du logiciel</h3>
+      <h3 className="mb-3 titre-page">Licence du logiciel</h3>
       {message && <Alert variant={message.type}>{message.text}</Alert>}
       {status.alerts?.map((a: any, i: number) => (
         <Alert key={i} variant={a.level === "danger" ? "danger" : a.level === "warning" ? "warning" : "info"}>
@@ -96,7 +96,7 @@ export default function LicencePage() {
           <Card className="shadow-sm">
             <Card.Header className="fw-semibold">État de la licence</Card.Header>
             <Card.Body>
-              <Table borderless size="sm" className="mb-0">
+              <Table responsive borderless size="sm" className="mb-0">
                 <tbody>
                   <tr>
                     <td className="text-muted">Statut</td>

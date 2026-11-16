@@ -29,6 +29,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   achat.serviceComptable = true;
   achat.statutAchat = "transfere_compta";
+  achat.renvoyeCompta = false;
   achat.comptaEnvoieLe = new Date();
   achat.comptaEnvoiePar = `${user.nom} ${user.prenom}`.trim();
   await achat.save();

@@ -31,7 +31,10 @@ export interface IReglementFournisseur extends Document {
   dateRemise?: Date;
   heureRemise?: string;
   achatIds?: Types.ObjectId[];
-  statut?: string; // emis | transfere_compta | decaisse | annule
+  statut?: string; // emis | transfere_compta | decaisse | renvoyee | annule
+  motifRenvoi?: string;
+  renvoyeLe?: Date;
+  renvoyePar?: string;
 }
 
 const ReglementFournisseurSchema = new Schema<IReglementFournisseur>(
@@ -58,6 +61,9 @@ const ReglementFournisseurSchema = new Schema<IReglementFournisseur>(
     heureRemise: { type: String },
     achatIds: [{ type: Schema.Types.ObjectId, ref: "Achat" }],
     statut: { type: String, default: "emis" },
+    motifRenvoi: { type: String },
+    renvoyeLe: { type: Date },
+    renvoyePar: { type: String },
   },
   { timestamps: true, collection: "reglementsfournisseurs" }
 );

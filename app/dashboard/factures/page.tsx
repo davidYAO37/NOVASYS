@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import dayjs from "dayjs";
 import { fmtDate, fmtMontant, STATUTS_FACTURE } from "@/lib/format";
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
 
 /**
  * EDITION DES FACTURES ET BONS DE LIVRAISON : liste des factures de la
@@ -18,6 +19,7 @@ function Factures() {
   const [du, setDu] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
   const [au, setAu] = useState(dayjs().format("YYYY-MM-DD"));
   const [nonSoldees, setNonSoldees] = useState(params.get("nonSoldees") === "1");
+  const [apercu, setApercu] = useState<{ type: "facture" | "bl"; id: string } | null>(null);
 
   const charger = useCallback(() => {
     axios.get("/api/factures", {
@@ -29,8 +31,8 @@ function Factures() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Factures et bons de livraison</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Factures et bons de livraison</h3>
         <Button onClick={() => router.push("/dashboard/factures/nouvelle")}>
           <i className="bi bi-plus-lg me-1"></i>Saisir nouvelle facture
         </Button>
@@ -39,15 +41,15 @@ function Factures() {
       <Card className="shadow-sm mb-3">
         <Card.Body>
           <Row className="g-2 align-items-end">
-            <Col md={3}><Form.Label>Du</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Du</Form.Label>
               <Form.Control type="date" value={du} onChange={(e) => setDu(e.target.value)} /></Col>
-            <Col md={3}><Form.Label>Au</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Au</Form.Label>
               <Form.Control type="date" value={au} onChange={(e) => setAu(e.target.value)} /></Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Form.Check type="checkbox" label="Non soldées uniquement"
                 checked={nonSoldees} onChange={(e) => setNonSoldees(e.target.checked)} />
             </Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Button variant="outline-primary" onClick={charger} className="w-100">
                 <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>
@@ -81,11 +83,11 @@ function Factures() {
                   {STATUTS_FACTURE[f.statutC]?.label || f.statutC}</Badge></td>
                 <td className="text-nowrap">
                   <Button size="sm" variant="outline-primary" className="me-1" title="Voir la facture"
-                    onClick={() => window.open(`/dashboard/factures/${f._id}/impression`, "_blank")}>
+                    onClick={() => setApercu({ type: "facture", id: f._id })}>
                     <i className="bi bi-receipt"></i>
                   </Button>
                   <Button size="sm" variant="outline-secondary" className="me-1" title="Voir le bon de livraison"
-                    onClick={() => window.open(`/dashboard/factures/${f._id}/impression?bl=1`, "_blank")}>
+                    onClick={() => setApercu({ type: "bl", id: f._id })}>
                     <i className="bi bi-truck"></i>
                   </Button>
                   <Button size="sm" variant="outline-info" title="Actualiser la facture"
@@ -101,6 +103,13 @@ function Factures() {
           </tbody>
         </Table>
       </Card>
+
+      <PdfPreviewModal
+        type={apercu?.type || "facture"}
+        id={apercu?.id || null}
+        show={!!apercu}
+        onHide={() => setApercu(null)}
+      />
     </div>
   );
 }

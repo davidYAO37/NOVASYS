@@ -42,8 +42,8 @@ export default function ProfilsPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Profils utilisateurs</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Profils utilisateurs</h3>
         <Button onClick={() => { setEditId(null); setFiche({ profil: "" }); setShowFiche(true); }}>
           <i className="bi bi-plus-lg me-1"></i>Nouveau profil
         </Button>
@@ -52,7 +52,7 @@ export default function ProfilsPage() {
       {message && <div className="alert alert-danger">{message}</div>}
 
       <Card className="shadow-sm" style={{ maxWidth: 600 }}>
-        <Table hover className="table-novasys mb-0">
+        <Table responsive hover className="table-novasys mb-0">
           <thead><tr><th>Profil</th><th style={{ width: 120 }}>Actions</th></tr></thead>
           <tbody>
             {profils.map((p) => (

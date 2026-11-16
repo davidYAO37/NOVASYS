@@ -1,45 +1,219 @@
 :root {
-  --novasys-primary: #1a5276;
-  --novasys-secondary: #2874a6;
-  --novasys-accent: #148f77;
+  /* Charte NOVASYS (logo rouge + ellipse grise) */
+  --novasys-red: #b3201f;
+  --novasys-red-dark: #8e1a18;
+  --novasys-red-light: #fbeaea;
+  --novasys-red-soft: var(--novasys-red-light);
+  --novasys-grey: #9d9fa2;
+  --novasys-text: #3c4043;
+  --novasys-muted: #6b6e72;
+  --novasys-text-muted: #5F6368;
+  --novasys-anthracite: #2b2d31;
+  --novasys-anthracite-2: #3a3d42;
+  --novasys-bg: #f4f5f7;
+  --novasys-border: #e3e5e8;
+
+  /* Alias historiques — ne pas casser les usages existants */
+  --novasys-primary: var(--novasys-red);
+  --novasys-secondary: var(--novasys-anthracite-2);
+  --novasys-accent: var(--novasys-red-dark);
+
+  /* Surcharge Bootstrap 5 */
+  --bs-primary: var(--novasys-red);
+  --bs-primary-rgb: 179, 32, 31;
+  --bs-link-color: var(--novasys-red);
+  --bs-link-color-rgb: 179, 32, 31;
+  --bs-link-hover-color: var(--novasys-red-dark);
+  --bs-link-hover-color-rgb: 142, 26, 24;
+  --bs-border-color: var(--novasys-border);
+  --bs-focus-ring-color: rgba(179, 32, 31, 0.25);
 }
 
 body {
-  background-color: #f4f6f9;
+  background-color: var(--novasys-bg);
+  color: var(--novasys-text);
+  font-family: "Segoe UI", Inter, system-ui, -apple-system, Roboto, sans-serif;
 }
 
+h1, h2, h3, h4, h5, h6 {
+  color: var(--novasys-text);
+  font-weight: 600;
+}
+
+/* ---------- Boutons / liens : rouge NOVASYS ---------- */
+.btn-primary {
+  --bs-btn-bg: var(--novasys-red);
+  --bs-btn-border-color: var(--novasys-red);
+  --bs-btn-hover-bg: var(--novasys-red-dark);
+  --bs-btn-hover-border-color: var(--novasys-red-dark);
+  --bs-btn-active-bg: var(--novasys-red-dark);
+  --bs-btn-active-border-color: var(--novasys-red-dark);
+  --bs-btn-disabled-bg: var(--novasys-red);
+  --bs-btn-disabled-border-color: var(--novasys-red);
+  --bs-btn-focus-shadow-rgb: 179, 32, 31;
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--novasys-red);
+  --bs-btn-border-color: var(--novasys-red);
+  --bs-btn-hover-bg: var(--novasys-red);
+  --bs-btn-hover-border-color: var(--novasys-red);
+  --bs-btn-active-bg: var(--novasys-red-dark);
+  --bs-btn-active-border-color: var(--novasys-red-dark);
+  --bs-btn-focus-shadow-rgb: 179, 32, 31;
+}
+
+.bg-primary { background-color: var(--novasys-red) !important; }
+.text-primary { color: var(--novasys-red) !important; }
+.border-primary { border-color: var(--novasys-red) !important; }
+.badge.text-bg-primary, .badge.bg-primary { background-color: var(--novasys-red) !important; }
+
+.alert-primary {
+  --bs-alert-color: var(--novasys-red-dark);
+  --bs-alert-bg: var(--novasys-red-soft);
+  --bs-alert-border-color: var(--novasys-red);
+}
+
+.table-primary {
+  --bs-table-bg: var(--novasys-red-soft);
+  --bs-table-border-color: var(--novasys-border);
+}
+
+.nav-pills {
+  --bs-nav-pills-link-active-bg: var(--novasys-red);
+}
+
+.page-link {
+  --bs-pagination-color: var(--novasys-red);
+  --bs-pagination-active-bg: var(--novasys-red);
+  --bs-pagination-active-border-color: var(--novasys-red);
+  --bs-pagination-focus-color: var(--novasys-red-dark);
+}
+
+/* Focus : halo rouge discret */
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--novasys-red);
+  box-shadow: 0 0 0 0.2rem rgba(179, 32, 31, 0.15);
+}
+
+.form-check-input:checked {
+  background-color: var(--novasys-red);
+  border-color: var(--novasys-red);
+}
+.form-check-input:focus {
+  border-color: var(--novasys-red);
+  box-shadow: 0 0 0 0.2rem rgba(179, 32, 31, 0.15);
+}
+
+.spinner-border.text-primary, .spinner-border { color: var(--novasys-red); }
+
+/* ---------- Page de connexion ---------- */
 .login-background {
-  background: linear-gradient(135deg, var(--novasys-primary) 0%, var(--novasys-secondary) 100%);
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(179, 32, 31, 0.35) 0%, transparent 60%),
+    linear-gradient(135deg, var(--novasys-anthracite) 0%, var(--novasys-anthracite-2) 100%);
 }
 
+.login-card {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.login-logo-tile {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  display: inline-block;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ---------- Menu latéral anthracite ---------- */
 .sidebar-novasys {
-  background-color: var(--novasys-primary);
-  min-height: 100vh;
-  color: #fff;
+  background-color: var(--novasys-anthracite);
+  color: #d6d8db;
 }
 
 .sidebar-novasys .nav-link {
-  color: rgba(255, 255, 255, 0.85);
+  color: #c9ccd1;
   border-radius: 6px;
   margin-bottom: 2px;
+  border-left: 3px solid transparent;
 }
 
-.sidebar-novasys .nav-link:hover,
-.sidebar-novasys .nav-link.active {
-  background-color: rgba(255, 255, 255, 0.15);
+.sidebar-novasys .nav-link:hover {
+  background-color: var(--novasys-anthracite-2);
   color: #fff;
 }
 
+.sidebar-novasys .nav-link.active {
+  background-color: var(--novasys-anthracite-2);
+  border-left-color: var(--novasys-red);
+  color: #fff;
+}
+
+.sidebar-novasys .nav-link.active .bi {
+  color: var(--novasys-red);
+}
+
 .sidebar-novasys .sidebar-title {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.09em;
+  color: var(--novasys-grey);
   margin: 1rem 0 0.25rem 0.75rem;
 }
 
+.sidebar-novasys .sidebar-logo-tile {
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-novasys .sidebar-logo-tile img {
+  max-width: 100%;
+  max-height: 56px;
+  object-fit: contain;
+}
+
+.topbar-novasys {
+  background-color: var(--novasys-anthracite);
+  color: #e9eaec;
+}
+
+.offcanvas.sidebar-novasys {
+  width: 280px !important;
+}
+
+/* ---------- Cartes / tableaux ---------- */
+.card {
+  border: none;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+h3.titre-page {
+  position: relative;
+  color: var(--novasys-anthracite);
+  padding-bottom: 0.4rem;
+}
+
+h3.titre-page::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 48px;
+  height: 3px;
+  border-radius: 2px;
+  background-color: var(--novasys-red);
+}
+
 .card-stat {
-  border-left: 4px solid var(--novasys-secondary);
+  border-left: 4px solid var(--novasys-red);
 }
 
 .badge-statut {
@@ -47,9 +221,25 @@ body {
 }
 
 .table-novasys thead th {
-  background-color: var(--novasys-primary);
+  background-color: var(--novasys-anthracite);
   color: #fff;
   white-space: nowrap;
+  border-bottom: 2px solid var(--novasys-red) !important;
+}
+
+.table-novasys tbody tr:nth-of-type(even) {
+  background-color: #fafbfc;
+}
+
+.table-novasys tbody tr:hover {
+  background-color: var(--novasys-red-light);
+}
+
+/* Aperçu PDF plein écran : l'iframe occupe la place disponible */
+.modal-fullscreen-md-down .pdf-preview-body,
+.modal-fullscreen .pdf-preview-body {
+  height: auto !important;
+  flex: 1 1 auto;
 }
 
 @media print {

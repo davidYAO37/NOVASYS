@@ -6,7 +6,7 @@ import axios from "axios";
 import { ALL_ACTION_CODES, ALL_SERVICE_CODES, PERMISSION_ACTIONS, ROLE_LABELS } from "@/lib/permissions";
 
 const VIDE = {
-  nom: "", prenom: "", email: "", password: "", type: "commercial",
+  nom: "", prenom: "", email: "", password: "", type: "commercial", codeProforma: "",
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -48,7 +48,7 @@ export default function UtilisateursPage() {
 
   const ouvrirFiche = (u?: any) => {
     setEditId(u?._id || null);
-    setFiche(u ? { nom: u.nom || "", prenom: u.prenom || "", email: u.email, password: "", type: u.type || "commercial" } : VIDE);
+    setFiche(u ? { nom: u.nom || "", prenom: u.prenom || "", email: u.email, password: "", type: u.type || "commercial", codeProforma: u.codeProforma || "" } : VIDE);
     setShowFiche(true);
   };
 
@@ -56,7 +56,7 @@ export default function UtilisateursPage() {
     setMessage("");
     try {
       if (editId) {
-        const payload: any = { nom: fiche.nom, prenom: fiche.prenom, type: fiche.type };
+        const payload: any = { nom: fiche.nom, prenom: fiche.prenom, type: fiche.type, codeProforma: fiche.codeProforma };
         if (fiche.password) payload.password = fiche.password;
         await axios.put(`/api/utilisateurs/${editId}`, payload);
       } else {
@@ -113,8 +113,8 @@ export default function UtilisateursPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Utilisateurs</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Utilisateurs</h3>
         <Button onClick={() => ouvrirFiche()}>
           <i className="bi bi-person-plus me-1"></i>Nouvel utilisateur
         </Button>
@@ -191,6 +191,9 @@ export default function UtilisateursPage() {
                   <option key={k} value={k}>{v}</option>
                 ))}
               </Form.Select></Col>
+            <Col md={6}><Form.Label>Code proforma (ex. TECH, COM, COMPT)</Form.Label>
+              <Form.Control value={fiche.codeProforma}
+                onChange={(e) => setFiche({ ...fiche, codeProforma: e.target.value.toUpperCase() })} /></Col>
           </Row>
         </Modal.Body>
         <Modal.Footer>
@@ -200,7 +203,7 @@ export default function UtilisateursPage() {
       </Modal>
 
       {/* Permissions personnalisées */}
-      <Modal show={showPerms} onHide={() => setShowPerms(false)} size="lg">
+      <Modal show={showPerms} onHide={() => setShowPerms(false)} size="lg" fullscreen="md-down">
         <Modal.Header closeButton>
           <Modal.Title>Permissions — {permUser?.nom} {permUser?.prenom}</Modal.Title>
         </Modal.Header>

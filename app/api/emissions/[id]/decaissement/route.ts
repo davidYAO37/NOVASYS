@@ -28,6 +28,12 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   if (!emission) {
     return NextResponse.json({ message: "Émission introuvable" }, { status: 404 });
   }
+  if (emission.statut === "renvoyee") {
+    return NextResponse.json(
+      { message: "Émission renvoyée au service achat : décaissement impossible" },
+      { status: 409 }
+    );
+  }
   if ((emission.resteAPaye || 0) < montant) {
     return NextResponse.json(
       { message: "Le montant dépasse le reste à payer de l'émission" },

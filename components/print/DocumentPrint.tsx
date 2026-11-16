@@ -198,21 +198,27 @@ export default function DocumentPrint({
           <div className="col-6">
             <table className="table table-sm">
               <tbody>
+                {(mainDoeuvre || 0) > 0 && (
+                  <tr>
+                    <td>Dont main d&apos;œuvre</td>
+                    <td className="text-end">{fmtMontant(mainDoeuvre)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td>Total HT</td>
                   <td className="text-end fw-bold">{fmtMontant(totalHT)}</td>
                 </tr>
                 {(remise || 0) > 0 && (
-                  <tr>
-                    <td>Remise</td>
-                    <td className="text-end">{fmtMontant(remise)}</td>
-                  </tr>
-                )}
-                {(mainDoeuvre || 0) > 0 && (
-                  <tr>
-                    <td>Main d&apos;œuvre</td>
-                    <td className="text-end">{fmtMontant(mainDoeuvre)}</td>
-                  </tr>
+                  <>
+                    <tr>
+                      <td>Remise</td>
+                      <td className="text-end">{fmtMontant(remise)}</td>
+                    </tr>
+                    <tr>
+                      <td>HT avec remise</td>
+                      <td className="text-end">{fmtMontant((totalHT || 0) - (remise || 0))}</td>
+                    </tr>
+                  </>
                 )}
                 <tr>
                   <td>TVA</td>

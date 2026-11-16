@@ -32,3 +32,19 @@ Compte par défaut (seed) : `admin@novasys.local` / `admin123`.
 - Après un changement de schéma Mongoose, **redémarrer `next dev`** : le modèle reste en cache et les nouveaux champs sont ignorés silencieusement.
 - « Sans entête » = zone d'entête réservée vide, sans logo/pied/cachet (papier pré-imprimé).
 - UI : `components/print/PdfButtons.tsx`, `components/print/ImpressionBar.tsx`, hook `hooks/useImpression.ts`.
+
+## Circuit de renvoi
+
+- **Service achat → commercial** : `POST /api/commandes/[id]/renvoi` (admin, achat), motif obligatoire. Autorisé seulement si le devis est transféré (`serviceAchat`), `statutC === "en_cours"`, non clôturé et sans bon de commande actif. Effet : retour en `brouillon` non envoyé, `renvoyee/motifRenvoi/renvoyeLe/renvoyePar` remplis ; le retransfert (`.../transfert`) remet `renvoyee=false` (motif conservé en historique). UI : bouton « Renvoyer » sur `/dashboard/service-achat`, badge « Renvoyée par le service achat » + motif sur `/dashboard/devis`.
+- **Comptabilité → service achat** : `POST /api/emissions/[id]/renvoi` (admin, comptable), motif obligatoire. Interdit si `decaisse`, `renvoyee`, `annule` ou `totalPaye > 0`. Effet : émission `statut="renvoyee"` + motif ; les `achatIds` liés repassent `serviceComptable=false`, `chequeEdite=false`, `statutAchat="brouillon"`, `renvoyeCompta=true` (modifiables, retransférables, réémissibles ; `paiementFournisseurId/comptaEnvoieLe/comptaEnvoiePar` retirés). `POST .../decaissement` refuse une émission renvoyée ; `.../transfert-compta` remet `renvoyeCompta=false`. UI : badge « Renvoyée » + motif et bouton « Renvoyer » sur `/dashboard/emission-cheque`, badge « Renvoyé par la compta » sur `/dashboard/achats`.
+- Badges de compteur : `commandesRenvoyees` (menu Devis) et `bonsRenvoyes` (teinte du badge Bons de commande) dans `GET /api/notifications`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

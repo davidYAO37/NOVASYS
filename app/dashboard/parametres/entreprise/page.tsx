@@ -60,7 +60,7 @@ export default function EntreprisePage() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <h3 className="mb-3">Fiche entreprise</h3>
+      <h3 className="mb-3 titre-page">Fiche entreprise</h3>
       {message && <div className={`alert alert-${message.type}`}>{message.text}</div>}
 
       <Card className="shadow-sm mb-3">

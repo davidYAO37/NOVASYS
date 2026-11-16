@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const commandeId = searchParams.get("commandeId");
   const filtre = commandeId ? { commandeId } : {};
-  const docs = await DocumentDevis.find(filtre).sort({ createdAt: -1 }).lean();
+  const docs = await DocumentDevis.find(filtre).select("-document").sort({ createdAt: -1 }).lean();
   return NextResponse.json(docs);
 }
 
@@ -43,5 +43,6 @@ export async function POST(req: NextRequest) {
     numCommande: data.numCommande,
     numComm: data.numComm,
   });
-  return NextResponse.json(doc, { status: 201 });
+  const { document: _contenu, ...sansContenu } = doc.toObject();
+  return NextResponse.json(sansContenu, { status: 201 });
 }

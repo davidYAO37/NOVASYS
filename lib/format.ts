@@ -12,6 +12,7 @@ export function fmtDate(d?: string | Date | null): string {
 export const STATUTS_COMMANDE: Record<string, { label: string; color: string }> = {
   brouillon: { label: "Pas encore envoyé", color: "secondary" },
   en_cours: { label: "En cours de traitement", color: "warning" },
+  partielle: { label: "Partiellement traitée", color: "info" },
   traitee: { label: "Traitée", color: "success" },
   annulee: { label: "Annulée", color: "danger" },
 };

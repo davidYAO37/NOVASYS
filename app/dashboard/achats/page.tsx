@@ -5,6 +5,7 @@ import { Badge, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
 import axios from "axios";
 import dayjs from "dayjs";
 import { fmtDate, fmtMontant, STATUTS_ACHAT } from "@/lib/format";
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
 
 /**
  * Bons de commande fournisseur : liste de la période, voir le bon de
@@ -14,6 +15,7 @@ export default function AchatsPage() {
   const [achats, setAchats] = useState<any[]>([]);
   const [du, setDu] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
   const [au, setAu] = useState(dayjs().format("YYYY-MM-DD"));
+  const [apercuId, setApercuId] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     axios.get("/api/achats", { params: { du, au } })
@@ -34,16 +36,16 @@ export default function AchatsPage() {
 
   return (
     <div>
-      <h3 className="mb-3">Bons de commande fournisseur</h3>
+      <h3 className="mb-3 titre-page">Bons de commande fournisseur</h3>
 
       <Card className="shadow-sm mb-3">
         <Card.Body>
           <Row className="g-2 align-items-end">
-            <Col md={3}><Form.Label>Du</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Du</Form.Label>
               <Form.Control type="date" value={du} onChange={(e) => setDu(e.target.value)} /></Col>
-            <Col md={3}><Form.Label>Au</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Au</Form.Label>
               <Form.Control type="date" value={au} onChange={(e) => setAu(e.target.value)} /></Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Button variant="outline-primary" onClick={charger}>
                 <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>
@@ -69,11 +71,18 @@ export default function AchatsPage() {
                 <td>{a.numCommande}</td>
                 <td className="text-end">{fmtMontant(a.totalTTC)}</td>
                 <td><Badge bg={STATUTS_ACHAT[a.statutAchat]?.color || "secondary"}>
-                  {STATUTS_ACHAT[a.statutAchat]?.label || a.statutAchat}</Badge></td>
+                  {STATUTS_ACHAT[a.statutAchat]?.label || a.statutAchat}</Badge>
+                  {a.renvoyeCompta && !a.serviceComptable && (
+                    <div className="mt-1">
+                      <Badge bg="warning" text="dark">Renvoyé par la compta</Badge>
+                      {a.motifRenvoi && <div className="small text-muted">{a.motifRenvoi}</div>}
+                    </div>
+                  )}
+                </td>
                 <td>{a.chequeEdite ? <Badge bg="success">Édité</Badge> : <Badge bg="secondary">—</Badge>}</td>
                 <td className="text-nowrap">
                   <Button size="sm" variant="outline-primary" className="me-1" title="Voir le bon de commande"
-                    onClick={() => window.open(`/dashboard/achats/${a._id}/impression`, "_blank")}>
+                    onClick={() => setApercuId(a._id)}>
                     <i className="bi bi-file-earmark-text"></i>
                   </Button>
                   {!a.serviceComptable && (
@@ -91,6 +100,8 @@ export default function AchatsPage() {
           </tbody>
         </Table>
       </Card>
+
+      <PdfPreviewModal type="bon-commande" id={apercuId} show={!!apercuId} onHide={() => setApercuId(null)} />
     </div>
   );
 }

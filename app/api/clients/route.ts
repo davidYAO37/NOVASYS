@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/db/mongoConnect";
 import { Client } from "@/models/client";
+import { filtreCreateur } from "@/lib/portee";
 
-const ROLES = ["admin", "commercial", "caisse", "comptable"];
+const ROLES = ["admin", "commercial", "achat", "caisse", "comptable"];
 
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth(req, ROLES);
+  const { user, error } = await requireAuth(req, ROLES);
   if (error) return error;
   await db();
 
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
       }
     : {};
 
-  const clients = await Client.find(filtre).sort({ nomPren: 1 }).lean();
+  const clients = await Client.find({ ...filtre, ...filtreCreateur(user) }).sort({ nomPren: 1 }).lean();
   return NextResponse.json(clients);
 }
 

@@ -35,27 +35,27 @@ export default function DashboardPage() {
   }
 
   const cartes = [
-    { label: "Commandes enregistrées", valeur: stats.commandes.enregistrees, icon: "bi-file-earmark-plus", color: "#2874a6", lien: "/dashboard/devis" },
+    { label: "Commandes enregistrées", valeur: stats.commandes.enregistrees, icon: "bi-file-earmark-plus", color: "#b3201f", lien: "/dashboard/devis" },
     { label: "Commandes en cours de traitement", valeur: stats.commandes.enCours, icon: "bi-hourglass-split", color: "#b9770e", lien: "/dashboard/devis?statut=en_cours" },
-    { label: "Commandes traitées", valeur: stats.commandes.traitees, icon: "bi-check2-circle", color: "#148f77", lien: "/dashboard/devis?statut=traitee" },
-    { label: "Commandes non transférées", valeur: stats.commandes.nonTraitees, icon: "bi-send", color: "#a93226", lien: "/dashboard/proformas-attente" },
+    { label: "Commandes traitées", valeur: stats.commandes.traitees, icon: "bi-check2-circle", color: "#198754", lien: "/dashboard/devis?statut=traitee" },
+    { label: "Commandes non transférées", valeur: stats.commandes.nonTraitees, icon: "bi-send", color: "#36393f", lien: "/dashboard/proformas-attente" },
   ];
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
         <div>
-          <h3 className="mb-0">Accueil</h3>
+          <h3 className="mb-0 titre-page">Accueil</h3>
           <small className="text-muted">Bienvenue {userName} — bilan de vos commandes</small>
         </div>
       </div>
 
       <Row className="g-3 mb-4">
         {cartes.map((c) => (
-          <Col md={6} lg={3} key={c.label}>
+          <Col xs={12} sm={6} xl={3} key={c.label}>
             <Card className="card-stat shadow-sm h-100" style={{ cursor: "pointer" }} onClick={() => router.push(c.lien)}>
               <Card.Body>
-                <div className="d-flex justify-content-between align-items-center">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <div>
                     <div className="fs-3 fw-bold" style={{ color: c.color }}>{c.valeur}</div>
                     <div className="text-muted small">{c.label}</div>

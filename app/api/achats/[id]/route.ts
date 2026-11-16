@@ -3,6 +3,8 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/db/mongoConnect";
 import { Achat } from "@/models/achat";
 import { LigneAchat } from "@/models/ligneAchat";
+import { LigneCde } from "@/models/ligneCde";
+import { quantitesCommandees, recalculerStatutCommande } from "@/lib/commandeAchat";
 
 const ROLES = ["admin", "achat", "comptable"];
 
@@ -44,14 +46,60 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   const { lignes, ...entete } = data;
   delete entete.numAchat;
 
+  let lignesRecalc: any[] | null = null;
+  if (Array.isArray(lignes) && achat.commandeId) {
+    const lignesCde = await LigneCde.find({ commandeId: achat.commandeId }).lean();
+    const lignesCdeParId = new Map(lignesCde.map((l) => [String(l._id), l]));
+    const commandees = await quantitesCommandees(achat.commandeId, achat._id);
+    const EPS = 1e-9;
+    for (const l of lignes) {
+      const quantite = Number(l.quantite);
+      if (!(quantite > 0)) {
+        return NextResponse.json(
+          { message: `Quantité invalide pour « ${l.articleM || "article"} »` },
+          { status: 400 }
+        );
+      }
+      if (l.ligneCdeId) {
+        const lc = lignesCdeParId.get(String(l.ligneCdeId));
+        if (!lc) {
+          return NextResponse.json(
+            { message: `La ligne « ${l.articleM || "article"} » n'appartient pas à cette commande` },
+            { status: 400 }
+          );
+        }
+        const reste = lc.quantite - (commandees.get(String(l.ligneCdeId)) || 0);
+        if (quantite - reste > EPS) {
+          return NextResponse.json(
+            {
+              message: `Quantité trop élevée pour « ${lc.articleM || l.articleM} » : reste ${reste}`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+    const taux = Number(data.taux ?? achat.taux) || 0;
+    lignesRecalc = lignes.map((l: any) => {
+      const prixTHT = Number(l.quantite) * (Number(l.prixAchat) || 0);
+      const tvaEntree = (prixTHT * taux) / 100;
+      return { ...l, prixTHT, tvaEntree, montantTTCE: prixTHT + tvaEntree };
+    });
+    entete.totalHT = lignesRecalc.reduce((s, l) => s + l.prixTHT, 0);
+    entete.totalTVA = lignesRecalc.reduce((s, l) => s + l.tvaEntree, 0);
+    entete.totalTTC = entete.totalHT + entete.totalTVA;
+    entete.resteAPaye = entete.totalTTC - (achat.totalPaye || 0);
+  }
+
   Object.assign(achat, entete);
   await achat.save();
 
   if (Array.isArray(lignes)) {
     await LigneAchat.deleteMany({ achatId: achat._id });
-    if (lignes.length) {
+    const aInserer = lignesRecalc ?? lignes;
+    if (aInserer.length) {
       await LigneAchat.insertMany(
-        lignes.map((l: any) => ({
+        aInserer.map((l: any) => ({
           ...l,
           _id: undefined,
           achatId: achat._id,
@@ -59,6 +107,10 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         }))
       );
     }
+  }
+
+  if (achat.commandeId) {
+    await recalculerStatutCommande(achat.commandeId);
   }
 
   const lignesMAJ = await LigneAchat.find({ achatId: achat._id }).lean();
@@ -71,7 +123,11 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   await db();
 
   const { id } = await ctx.params;
+  const achat = await Achat.findById(id).lean();
   await LigneAchat.deleteMany({ achatId: id });
   await Achat.findByIdAndDelete(id);
+  if (achat?.commandeId) {
+    await recalculerStatutCommande(achat.commandeId);
+  }
   return NextResponse.json({ message: "Bon de commande supprimé" });
 }

@@ -28,7 +28,7 @@ export interface ICommande extends Document {
   clientId?: Types.ObjectId;
   clientC?: string;
   contactC?: string;
-  statutC?: string; // brouillon | envoyee | en_cours | traitee | annulee
+  statutC?: string; // brouillon | envoyee | en_cours | partielle | traitee | annulee
   modeReglement?: string;
   banque?: string;
   numCheque?: string;
@@ -51,6 +51,13 @@ export interface ICommande extends Document {
   bonAchat?: string;
   deviseM?: string;
   factureEditee?: boolean;
+  clotureManuelle?: boolean;
+  clotureLe?: Date;
+  cloturePar?: string;
+  renvoyee?: boolean;
+  motifRenvoi?: string;
+  renvoyeLe?: Date;
+  renvoyePar?: string;
 }
 
 const CommandeSchema = new Schema<ICommande>(
@@ -93,6 +100,13 @@ const CommandeSchema = new Schema<ICommande>(
     bonAchat: { type: String },
     deviseM: { type: String, default: "FCFA" },
     factureEditee: { type: Boolean, default: false },
+    clotureManuelle: { type: Boolean, default: false },
+    clotureLe: { type: Date },
+    cloturePar: { type: String },
+    renvoyee: { type: Boolean, default: false },
+    motifRenvoi: { type: String },
+    renvoyeLe: { type: Date },
+    renvoyePar: { type: String },
   },
   { timestamps: true, collection: "commandes" }
 );

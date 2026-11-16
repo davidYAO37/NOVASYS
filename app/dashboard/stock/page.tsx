@@ -53,8 +53,8 @@ export default function StockPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Articles et stock</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Articles et stock</h3>
         <div>
           <Button variant="success" className="me-2" onClick={() => { setMvt({ ...mvt, sens: "entree" }); setShowMvt(true); }}>
             <i className="bi bi-box-arrow-in-down me-1"></i>Entrée

@@ -1,15 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
+import { Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
 import axios from "axios";
 import { fmtDate, fmtMontant, STATUTS_FACTURE } from "@/lib/format";
-
-const VIDE = {
-  nomPren: "", raisonSociale: "", rcc: "", villeClient: "", adresseGeo: "",
-  telephone: "", mail: "", observation: "", fonctionClient: "", structureCli: "",
-  ncc: "", boitePostale: "",
-};
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
+import FicheClientModal from "@/components/tiers/FicheClientModal";
 
 /**
  * CLIENT — liste des clients, fiche client, factures et paiements du
@@ -18,12 +14,12 @@ const VIDE = {
 export default function ClientsPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [recherche, setRecherche] = useState("");
+  const [ficheInit, setFicheInit] = useState<any | null>(null);
   const [showFiche, setShowFiche] = useState(false);
-  const [fiche, setFiche] = useState<any>(VIDE);
-  const [editId, setEditId] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [message, setMessage] = useState("");
+  const [apercu, setApercu] = useState<{ type: "facture" | "bl"; id: string } | null>(null);
 
   const charger = useCallback(() => {
     axios.get("/api/clients", { params: { q: recherche || undefined } })
@@ -34,20 +30,8 @@ export default function ClientsPage() {
   useEffect(() => { charger(); }, [charger]);
 
   const ouvrirFiche = (c?: any) => {
-    setEditId(c?._id || null);
-    setFiche(c ? { ...VIDE, ...c } : VIDE);
+    setFicheInit(c || null);
     setShowFiche(true);
-  };
-
-  const enregistrer = async () => {
-    try {
-      if (editId) await axios.put(`/api/clients/${editId}`, fiche);
-      else await axios.post("/api/clients", fiche);
-      setShowFiche(false);
-      charger();
-    } catch (e: any) {
-      setMessage(e.response?.data?.message || "Erreur d'enregistrement");
-    }
   };
 
   const voirDetail = async (id: string) => {
@@ -68,8 +52,8 @@ export default function ClientsPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Liste des clients</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Liste des clients</h3>
         <Button onClick={() => ouvrirFiche()}>
           <i className="bi bi-plus-lg me-1"></i>Nouveau client
         </Button>
@@ -136,46 +120,15 @@ export default function ClientsPage() {
       </Card>
 
       {/* Fiche client */}
-      <Modal show={showFiche} onHide={() => setShowFiche(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Fiche client</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Row className="g-3">
-            <Col md={6}><Form.Label>Nom & Prénoms *</Form.Label>
-              <Form.Control value={fiche.nomPren} onChange={(e) => setFiche({ ...fiche, nomPren: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Raison sociale</Form.Label>
-              <Form.Control value={fiche.raisonSociale} onChange={(e) => setFiche({ ...fiche, raisonSociale: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>RCC</Form.Label>
-              <Form.Control value={fiche.rcc} onChange={(e) => setFiche({ ...fiche, rcc: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>NCC</Form.Label>
-              <Form.Control value={fiche.ncc} onChange={(e) => setFiche({ ...fiche, ncc: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Téléphone</Form.Label>
-              <Form.Control value={fiche.telephone} onChange={(e) => setFiche({ ...fiche, telephone: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Email</Form.Label>
-              <Form.Control type="email" value={fiche.mail} onChange={(e) => setFiche({ ...fiche, mail: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Ville</Form.Label>
-              <Form.Control value={fiche.villeClient} onChange={(e) => setFiche({ ...fiche, villeClient: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Boîte postale</Form.Label>
-              <Form.Control value={fiche.boitePostale} onChange={(e) => setFiche({ ...fiche, boitePostale: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Fonction</Form.Label>
-              <Form.Control value={fiche.fonctionClient} onChange={(e) => setFiche({ ...fiche, fonctionClient: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Structure</Form.Label>
-              <Form.Control value={fiche.structureCli} onChange={(e) => setFiche({ ...fiche, structureCli: e.target.value })} /></Col>
-            <Col md={12}><Form.Label>Adresse géographique</Form.Label>
-              <Form.Control value={fiche.adresseGeo} onChange={(e) => setFiche({ ...fiche, adresseGeo: e.target.value })} /></Col>
-            <Col md={12}><Form.Label>Observation</Form.Label>
-              <Form.Control as="textarea" rows={2} value={fiche.observation} onChange={(e) => setFiche({ ...fiche, observation: e.target.value })} /></Col>
-          </Row>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowFiche(false)}>Annuler</Button>
-          <Button onClick={enregistrer}>Valider</Button>
-        </Modal.Footer>
-      </Modal>
+      <FicheClientModal
+        show={showFiche}
+        initial={ficheInit}
+        onHide={() => setShowFiche(false)}
+        onSaved={() => { setShowFiche(false); charger(); }}
+      />
 
       {/* Factures du client (LISTE DES FACTURES DU CLIENT) */}
-      <Modal show={showDetail} onHide={() => setShowDetail(false)} size="xl">
+      <Modal show={showDetail} onHide={() => setShowDetail(false)} size="xl" fullscreen="md-down">
         <Modal.Header closeButton>
           <Modal.Title>Client : {detail?.nomPren}</Modal.Title>
         </Modal.Header>
@@ -199,10 +152,10 @@ export default function ClientsPage() {
                   <td className="text-end">{fmtMontant(f.resteAPaye)}</td>
                   <td><Badge bg={STATUTS_FACTURE[f.statutC]?.color || "secondary"}>{STATUTS_FACTURE[f.statutC]?.label || f.statutC}</Badge></td>
                   <td>
-                    <Button size="sm" variant="outline-primary" className="me-1" onClick={() => window.open(`/dashboard/factures/${f._id}/impression`, "_blank")}>
+                    <Button size="sm" variant="outline-primary" className="me-1" onClick={() => setApercu({ type: "facture", id: f._id })}>
                       <i className="bi bi-receipt"></i> Facture
                     </Button>
-                    <Button size="sm" variant="outline-secondary" onClick={() => window.open(`/dashboard/factures/${f._id}/impression?bl=1`, "_blank")}>
+                    <Button size="sm" variant="outline-secondary" onClick={() => setApercu({ type: "bl", id: f._id })}>
                       <i className="bi bi-truck"></i> BL
                     </Button>
                   </td>
@@ -215,6 +168,13 @@ export default function ClientsPage() {
           </Table>
         </Modal.Body>
       </Modal>
+
+      <PdfPreviewModal
+        type={apercu?.type || "facture"}
+        id={apercu?.id || null}
+        show={!!apercu}
+        onHide={() => setApercu(null)}
+      />
     </div>
   );
 }

@@ -14,13 +14,13 @@ import { NumberToLetter } from "@mandarvl/convertir-nombre-lettre";
  */
 
 const COLORS = {
-  primary: "#1a5276",
-  secondary: "#2874a6",
-  accent: "#148f77",
-  ink: "#263746",
-  muted: "#647789",
-  line: "#DCE6EC",
-  pale: "#EAF2F8",
+  primary: "#B3201F",
+  secondary: "#2B2D31",
+  accent: "#5F6368",
+  ink: "#3C4043",
+  muted: "#6B6E72",
+  line: "#E3E5E8",
+  pale: "#F2F3F5",
 };
 
 const PAGE = { left: 50, right: 545, top: 50, bottom: 792 };
@@ -354,11 +354,13 @@ export async function genererDocumentPdf(
     if (!data.sansPrix) {
       if (y > 660) pageBreak();
       const bx = PAGE.right - 230;
-      const rows: [string, string, boolean?][] = [
-        ["Total HT", formatAmount(to.totalHT, devise)],
-      ];
-      if ((to.remise || 0) > 0) rows.push(["Remise", `- ${formatAmount(to.remise, devise)}`]);
-      if ((to.mainDoeuvre || 0) > 0) rows.push(["Main d'œuvre", formatAmount(to.mainDoeuvre, devise)]);
+      const rows: [string, string, boolean?][] = [];
+      if ((to.mainDoeuvre || 0) > 0) rows.push(["Dont main d'œuvre", formatAmount(to.mainDoeuvre, devise)]);
+      rows.push(["Total HT", formatAmount(to.totalHT, devise)]);
+      if ((to.remise || 0) > 0) {
+        rows.push(["Remise", `- ${formatAmount(to.remise, devise)}`]);
+        rows.push(["HT avec remise", formatAmount((to.totalHT || 0) - (to.remise || 0), devise)]);
+      }
       rows.push(["TVA", formatAmount(to.totalTVA, devise)]);
       rows.push(["TOTAL TTC", formatAmount(to.totalTTC, devise), true]);
       if ((to.totalPaye || 0) > 0) rows.push(["Payé", formatAmount(to.totalPaye, devise)]);

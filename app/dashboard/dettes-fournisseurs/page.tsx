@@ -23,7 +23,7 @@ export default function DettesFournisseursPage() {
 
   return (
     <div>
-      <h3 className="mb-3">Dettes fournisseurs</h3>
+      <h3 className="mb-3 titre-page">Dettes fournisseurs</h3>
 
       <Card className="shadow-sm mb-3">
         <Card.Body className="fs-5">

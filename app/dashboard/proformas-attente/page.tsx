@@ -31,7 +31,7 @@ export default function ProformasAttentePage() {
 
   return (
     <div>
-      <h3 className="mb-3">Proformas en attente</h3>
+      <h3 className="mb-3 titre-page">Proformas en attente</h3>
       <p className="text-muted">Commandes pas encore envoyées au service achat.</p>
 
       <Card className="shadow-sm">

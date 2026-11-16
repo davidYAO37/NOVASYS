@@ -12,9 +12,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return (
         <Verifconnecion>
             <div className="d-flex flex-column min-vh-100" style={{ minHeight: '100vh' }}>
-                <div className="d-flex flex-column flex-md-row flex-grow-1">
+                <div className="d-flex flex-column flex-lg-row flex-grow-1">
                     <Sidebar />
-                    <main className="flex-grow-1 p-3">
+                    <main className="flex-grow-1 p-2 p-md-3 p-xl-4" style={{ minWidth: 0 }}>
                         <LicenceAlertBanner />
                         {children}
                     </main>

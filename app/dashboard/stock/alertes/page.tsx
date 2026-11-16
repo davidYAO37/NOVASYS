@@ -16,7 +16,7 @@ export default function AlertesStockPage() {
 
   return (
     <div>
-      <h3 className="mb-3">
+      <h3 className="mb-3 titre-page">
         <i className="bi bi-exclamation-triangle text-warning me-2"></i>
         Alertes stock
       </h3>

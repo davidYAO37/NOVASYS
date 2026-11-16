@@ -42,8 +42,8 @@ export default function CaissePage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Gestion de la caisse</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Gestion de la caisse</h3>
         <div>
           <Button variant="success" className="me-2" onClick={() => { setOp({ ...op, typeC: "entree" }); setShowOp(true); }}>
             <i className="bi bi-plus-circle me-1"></i>Entrée
@@ -57,7 +57,7 @@ export default function CaissePage() {
       {message && <div className="alert alert-danger">{message}</div>}
 
       <Row className="g-3 mb-3">
-        <Col md={4}>
+        <Col xs={12} sm={6} md={4}>
           <Card className="shadow-sm text-center">
             <Card.Body>
               <div className="text-muted small">Solde de caisse</div>
@@ -67,7 +67,7 @@ export default function CaissePage() {
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4}>
+        <Col xs={12} sm={6} md={4}>
           <Card className="shadow-sm text-center">
             <Card.Body>
               <div className="text-muted small">Entrées (période)</div>
@@ -75,7 +75,7 @@ export default function CaissePage() {
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4}>
+        <Col xs={12} sm={6} md={4}>
           <Card className="shadow-sm text-center">
             <Card.Body>
               <div className="text-muted small">Sorties (période)</div>
@@ -88,11 +88,11 @@ export default function CaissePage() {
       <Card className="shadow-sm mb-3">
         <Card.Body>
           <Row className="g-2 align-items-end">
-            <Col md={3}><Form.Label>Du</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Du</Form.Label>
               <Form.Control type="date" value={du} onChange={(e) => setDu(e.target.value)} /></Col>
-            <Col md={3}><Form.Label>Au</Form.Label>
+            <Col xs={12} sm={6} md={3}><Form.Label>Au</Form.Label>
               <Form.Control type="date" value={au} onChange={(e) => setAu(e.target.value)} /></Col>
-            <Col md={3}>
+            <Col xs={12} sm={6} md={3}>
               <Button variant="outline-primary" onClick={charger}>
                 <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>

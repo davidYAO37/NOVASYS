@@ -42,6 +42,9 @@ export async function POST(req: NextRequest) {
     email: data.email.toLowerCase().trim(),
     password: await hashPassword(data.password),
     type: data.type || "commercial",
+    codeProforma: /^[A-Z0-9]{1,10}$/.test((data.codeProforma || "").trim().toUpperCase())
+      ? data.codeProforma.trim().toUpperCase()
+      : undefined,
     profilId: data.profilId || undefined,
     uid: generateLocalUID(),
     permissions: data.permissions?.customized

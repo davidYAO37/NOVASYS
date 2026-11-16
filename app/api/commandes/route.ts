@@ -4,6 +4,9 @@ import { db } from "@/db/mongoConnect";
 import { Commande } from "@/models/commande";
 import { LigneCde } from "@/models/ligneCde";
 import { nextNumero } from "@/lib/numero";
+import { calculerLigne, calculerTotaux } from "@/lib/calculDevis";
+import { prochainNumeroProforma } from "@/lib/numeroProforma";
+import { filtreSaisie } from "@/lib/portee";
 
 const ROLES = ["admin", "commercial", "achat"];
 
@@ -12,7 +15,7 @@ const ROLES = ["admin", "commercial", "achat"];
  * (équivalent "liste des commandes de la période" de FEN_GESTION_DES_DEVIS).
  */
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth(req, ROLES);
+  const { user, error } = await requireAuth(req, ROLES);
   if (error) return error;
   await db();
 
@@ -37,7 +40,7 @@ export async function GET(req: NextRequest) {
   if (enAttente === "1") filtre.serviceAchat = { $ne: true };
   if (recues === "1") filtre.serviceAchat = true;
 
-  const commandes = await Commande.find(filtre)
+  const commandes = await Commande.find({ ...filtre, ...filtreSaisie(user) })
     .sort({ dateCommande: -1 })
     .limit(500)
     .lean();
@@ -65,19 +68,40 @@ export async function POST(req: NextRequest) {
   const saisiePar = `${user.nom} ${user.prenom}`.trim();
   const numCommande = data.numCommande || (await nextNumero(Commande, "numCommande", "DEV"));
 
+  let numComm = (data.numComm || "").trim();
+  if (numComm) {
+    const existe = await Commande.findOne({ numComm }).select("_id").lean();
+    if (existe) {
+      return NextResponse.json(
+        { message: "N° proforma déjà utilisé" },
+        { status: 409 }
+      );
+    }
+  } else {
+    numComm = await prochainNumeroProforma(user);
+  }
+
+  const lignesRecalc = lignes.map((l: any) => calculerLigne(l));
+  const totaux = calculerTotaux(lignesRecalc, {
+    mainDoeuvre: data.mainDoeuvre,
+    tauxRemise: data.tauxRemise,
+    taux: data.taux,
+    totalPaye: 0,
+  });
+
   const commande = await Commande.create({
     numCommande,
-    numComm: data.numComm || numCommande,
+    numComm,
     dateCommande: data.dateCommande || new Date(),
     heureAjout: new Date().toLocaleTimeString("fr-FR"),
-    totalHT: data.totalHT || 0,
+    totalHT: totaux.totalHT,
     mainDoeuvre: data.mainDoeuvre || 0,
-    remise: data.remise || 0,
-    totalAvecRemise: data.totalAvecRemise || 0,
-    totalTVA: data.totalTVA || 0,
-    totalTTC: data.totalTTC || 0,
+    remise: totaux.remise,
+    totalAvecRemise: totaux.totalAvecRemise,
+    totalTVA: totaux.totalTVA,
+    totalTTC: totaux.totalTTC,
     totalPaye: 0,
-    resteAPaye: data.totalTTC || 0,
+    resteAPaye: totaux.resteAPaye,
     clientId: data.clientId || undefined,
     clientC: data.clientC,
     contactC: data.contactC,
@@ -92,11 +116,12 @@ export async function POST(req: NextRequest) {
     telephone: data.telephone,
     mail: data.mail,
     boitePostale: data.boitePostale,
+    modeReglement: data.modeReglement,
     deviseM: data.deviseM || "FCFA",
   });
 
   await LigneCde.insertMany(
-    lignes.map((l: any) => ({
+    lignesRecalc.map((l: any) => ({
       commandeId: commande._id,
       numCommande,
       reference: l.reference,
@@ -104,9 +129,9 @@ export async function POST(req: NextRequest) {
       description: l.description,
       quantite: Number(l.quantite) || 0,
       prixUnitaire: Number(l.prixUnitaire) || 0,
-      prixUnitaireHT: Number(l.prixUnitaireHT) || 0,
+      prixUnitaireHT: l.prixUnitaireHT,
       fraisTransport: Number(l.fraisTransport) || 0,
-      prixTotalHT: Number(l.prixTotalHT) || 0,
+      prixTotalHT: l.prixTotalHT,
       numSerie: l.numSerie,
       tauxDeDouanement: Number(l.tauxDeDouanement) || 0,
       tauxMarge: Number(l.tauxMarge) || 0,

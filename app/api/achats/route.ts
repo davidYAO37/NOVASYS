@@ -4,7 +4,9 @@ import { db } from "@/db/mongoConnect";
 import { Achat } from "@/models/achat";
 import { LigneAchat } from "@/models/ligneAchat";
 import { Commande } from "@/models/commande";
+import { LigneCde } from "@/models/ligneCde";
 import { nextNumero } from "@/lib/numero";
+import { quantitesCommandees, recalculerStatutCommande } from "@/lib/commandeAchat";
 
 const ROLES = ["admin", "achat", "comptable"];
 
@@ -55,6 +57,79 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+  if (!data.fournisseurId) {
+    return NextResponse.json(
+      { message: "Le fournisseur est obligatoire" },
+      { status: 400 }
+    );
+  }
+
+  let commande = null;
+  if (data.commandeId) {
+    commande = await Commande.findById(data.commandeId);
+    if (!commande) {
+      return NextResponse.json({ message: "Commande introuvable" }, { status: 404 });
+    }
+    if (!commande.serviceAchat) {
+      return NextResponse.json(
+        { message: "Cette commande n'est pas transférée au service achat" },
+        { status: 409 }
+      );
+    }
+    if (commande.statutC === "traitee") {
+      return NextResponse.json(
+        { message: "Commande déjà traitée/clôturée" },
+        { status: 409 }
+      );
+    }
+  }
+
+  const lignesCde = data.commandeId
+    ? await LigneCde.find({ commandeId: data.commandeId }).lean()
+    : [];
+  const lignesCdeParId = new Map(lignesCde.map((l) => [String(l._id), l]));
+  const commandees = data.commandeId
+    ? await quantitesCommandees(data.commandeId)
+    : new Map<string, number>();
+  const EPS = 1e-9;
+  const taux = Number(data.taux) || 0;
+
+  for (const l of lignes) {
+    const quantite = Number(l.quantite);
+    if (!(quantite > 0)) {
+      return NextResponse.json(
+        { message: `Quantité invalide pour « ${l.articleM || "article"} »` },
+        { status: 400 }
+      );
+    }
+    if (l.ligneCdeId) {
+      const lc = lignesCdeParId.get(String(l.ligneCdeId));
+      if (!lc) {
+        return NextResponse.json(
+          { message: `La ligne « ${l.articleM || "article"} » n'appartient pas à cette commande` },
+          { status: 400 }
+        );
+      }
+      const reste = lc.quantite - (commandees.get(String(l.ligneCdeId)) || 0);
+      if (quantite - reste > EPS) {
+        return NextResponse.json(
+          {
+            message: `Quantité trop élevée pour « ${lc.articleM || l.articleM} » : reste ${reste}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+  }
+
+  const lignesRecalc = lignes.map((l: any) => {
+    const prixTHT = Number(l.quantite) * (Number(l.prixAchat) || 0);
+    const tvaEntree = (prixTHT * taux) / 100;
+    return { ...l, prixTHT, tvaEntree, montantTTCE: prixTHT + tvaEntree };
+  });
+  const totalHT = lignesRecalc.reduce((s: number, l: any) => s + l.prixTHT, 0);
+  const totalTVA = lignesRecalc.reduce((s: number, l: any) => s + l.tvaEntree, 0);
+  const totalTTC = totalHT + totalTVA;
 
   const saisiePar = `${user.nom} ${user.prenom}`.trim();
   const numAchat = data.numAchat || (await nextNumero(Achat, "numAchat", "BC"));
@@ -62,9 +137,9 @@ export async function POST(req: NextRequest) {
   const achat = await Achat.create({
     numAchat,
     dateAchat: data.dateAchat || new Date(),
-    totalHT: data.totalHT || 0,
-    totalTVA: data.totalTVA || 0,
-    totalTTC: data.totalTTC || 0,
+    totalHT,
+    totalTVA,
+    totalTTC,
     fournisseur: data.fournisseur,
     fournisseurId: data.fournisseurId || undefined,
     statutAchat: "brouillon",
@@ -73,7 +148,7 @@ export async function POST(req: NextRequest) {
     duree: data.duree,
     saisiePar,
     totalPaye: 0,
-    resteAPaye: data.totalTTC || 0,
+    resteAPaye: totalTTC,
     numAchatProfor: data.numAchatProfor,
     taux: data.taux || 0,
     commandeId: data.commandeId || undefined,
@@ -84,7 +159,7 @@ export async function POST(req: NextRequest) {
   });
 
   await LigneAchat.insertMany(
-    lignes.map((l: any) => ({
+    lignesRecalc.map((l: any) => ({
       achatId: achat._id,
       numAchat,
       articleM: l.articleM,
@@ -92,9 +167,9 @@ export async function POST(req: NextRequest) {
       reference: l.reference,
       quantite: Number(l.quantite) || 0,
       prixAchat: Number(l.prixAchat) || 0,
-      prixTHT: Number(l.prixTHT) || 0,
-      tvaEntree: Number(l.tvaEntree) || 0,
-      montantTTCE: Number(l.montantTTCE) || 0,
+      prixTHT: l.prixTHT,
+      tvaEntree: l.tvaEntree,
+      montantTTCE: l.montantTTCE,
       taux: Number(l.taux) || 0,
       observations: l.observations,
       fournisseur: data.fournisseur,
@@ -107,15 +182,14 @@ export async function POST(req: NextRequest) {
     }))
   );
 
-  // Marquer la commande d'origine comme traitée par le service achat
+  let commandeMAJ = null;
   if (data.commandeId) {
-    await Commande.findByIdAndUpdate(data.commandeId, {
-      statutC: "traitee",
-      numAchat,
-      bonAchat: numAchat,
-    });
+    commandeMAJ = await recalculerStatutCommande(data.commandeId);
   }
 
   const lignesCrees = await LigneAchat.find({ achatId: achat._id }).lean();
-  return NextResponse.json({ ...achat.toObject(), lignes: lignesCrees }, { status: 201 });
+  return NextResponse.json(
+    { ...achat.toObject(), lignes: lignesCrees, commande: commandeMAJ },
+    { status: 201 }
+  );
 }

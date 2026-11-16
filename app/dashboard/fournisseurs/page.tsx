@@ -1,14 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
+import { Badge, Button, Card, Form, Modal, Table } from "react-bootstrap";
 import axios from "axios";
 import { fmtDate, fmtMontant, STATUTS_ACHAT } from "@/lib/format";
-
-const VIDE = {
-  nomPren: "", raisonSociale: "", rcc: "", telephone: "", portable: "",
-  mail: "", adresseGeo: "", adresseP: "", observation: "", ncc: "",
-};
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
+import FicheFournisseurModal from "@/components/tiers/FicheFournisseurModal";
 
 /**
  * FOURNISSEUR — liste des fournisseurs, fiche fournisseur et liste des
@@ -18,12 +15,12 @@ const VIDE = {
 export default function FournisseursPage() {
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
   const [recherche, setRecherche] = useState("");
+  const [ficheInit, setFicheInit] = useState<any | null>(null);
   const [showFiche, setShowFiche] = useState(false);
-  const [fiche, setFiche] = useState<any>(VIDE);
-  const [editId, setEditId] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [message, setMessage] = useState("");
+  const [apercuId, setApercuId] = useState<string | null>(null);
 
   const charger = useCallback(() => {
     axios.get("/api/fournisseurs", { params: { q: recherche || undefined } })
@@ -34,20 +31,8 @@ export default function FournisseursPage() {
   useEffect(() => { charger(); }, [charger]);
 
   const ouvrirFiche = (f?: any) => {
-    setEditId(f?._id || null);
-    setFiche(f ? { ...VIDE, ...f } : VIDE);
+    setFicheInit(f || null);
     setShowFiche(true);
-  };
-
-  const enregistrer = async () => {
-    try {
-      if (editId) await axios.put(`/api/fournisseurs/${editId}`, fiche);
-      else await axios.post("/api/fournisseurs", fiche);
-      setShowFiche(false);
-      charger();
-    } catch (e: any) {
-      setMessage(e.response?.data?.message || "Erreur d'enregistrement");
-    }
   };
 
   const voirDetail = async (id: string) => {
@@ -68,8 +53,8 @@ export default function FournisseursPage() {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h3 className="mb-0">Liste des fournisseurs</h3>
+      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h3 className="mb-0 titre-page">Liste des fournisseurs</h3>
         <Button onClick={() => ouvrirFiche()}>
           <i className="bi bi-plus-lg me-1"></i>Nouveau fournisseur
         </Button>
@@ -134,42 +119,15 @@ export default function FournisseursPage() {
       </Card>
 
       {/* Fiche fournisseur */}
-      <Modal show={showFiche} onHide={() => setShowFiche(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>Fiche fournisseur</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Row className="g-3">
-            <Col md={6}><Form.Label>Nom & Prénoms *</Form.Label>
-              <Form.Control value={fiche.nomPren} onChange={(e) => setFiche({ ...fiche, nomPren: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Raison sociale</Form.Label>
-              <Form.Control value={fiche.raisonSociale} onChange={(e) => setFiche({ ...fiche, raisonSociale: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>RCC</Form.Label>
-              <Form.Control value={fiche.rcc} onChange={(e) => setFiche({ ...fiche, rcc: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>NCC</Form.Label>
-              <Form.Control value={fiche.ncc} onChange={(e) => setFiche({ ...fiche, ncc: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Téléphone</Form.Label>
-              <Form.Control value={fiche.telephone} onChange={(e) => setFiche({ ...fiche, telephone: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Portable</Form.Label>
-              <Form.Control value={fiche.portable} onChange={(e) => setFiche({ ...fiche, portable: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Email</Form.Label>
-              <Form.Control type="email" value={fiche.mail} onChange={(e) => setFiche({ ...fiche, mail: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Adresse postale</Form.Label>
-              <Form.Control value={fiche.adresseP} onChange={(e) => setFiche({ ...fiche, adresseP: e.target.value })} /></Col>
-            <Col md={12}><Form.Label>Adresse géographique</Form.Label>
-              <Form.Control value={fiche.adresseGeo} onChange={(e) => setFiche({ ...fiche, adresseGeo: e.target.value })} /></Col>
-            <Col md={12}><Form.Label>Observation</Form.Label>
-              <Form.Control as="textarea" rows={2} value={fiche.observation} onChange={(e) => setFiche({ ...fiche, observation: e.target.value })} /></Col>
-          </Row>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowFiche(false)}>Annuler</Button>
-          <Button onClick={enregistrer}>Valider</Button>
-        </Modal.Footer>
-      </Modal>
+      <FicheFournisseurModal
+        show={showFiche}
+        initial={ficheInit}
+        onHide={() => setShowFiche(false)}
+        onSaved={() => { setShowFiche(false); charger(); }}
+      />
 
       {/* Liste des commandes du fournisseur */}
-      <Modal show={showDetail} onHide={() => setShowDetail(false)} size="xl">
+      <Modal show={showDetail} onHide={() => setShowDetail(false)} size="xl" fullscreen="md-down">
         <Modal.Header closeButton>
           <Modal.Title>Fournisseur : {detail?.nomPren}</Modal.Title>
         </Modal.Header>
@@ -193,7 +151,7 @@ export default function FournisseursPage() {
                   <td className="text-end">{fmtMontant(a.resteAPaye)}</td>
                   <td><Badge bg={STATUTS_ACHAT[a.statutAchat]?.color || "secondary"}>{STATUTS_ACHAT[a.statutAchat]?.label || a.statutAchat}</Badge></td>
                   <td>
-                    <Button size="sm" variant="outline-primary" onClick={() => window.open(`/dashboard/achats/${a._id}/impression`, "_blank")}>
+                    <Button size="sm" variant="outline-primary" onClick={() => setApercuId(a._id)}>
                       <i className="bi bi-file-earmark-text"></i> Bon de commande
                     </Button>
                   </td>
@@ -206,6 +164,8 @@ export default function FournisseursPage() {
           </Table>
         </Modal.Body>
       </Modal>
+
+      <PdfPreviewModal type="bon-commande" id={apercuId} show={!!apercuId} onHide={() => setApercuId(null)} />
     </div>
   );
 }

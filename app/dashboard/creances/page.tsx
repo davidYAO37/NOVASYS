@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { Button, Card, Table } from "react-bootstrap";
 import axios from "axios";
 import { fmtMontant } from "@/lib/format";
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
 
 /** FI_creance_client : clients avec reste à payer > 0. */
 export default function CreancesPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [factures, setFactures] = useState<any[]>([]);
+  const [apercuId, setApercuId] = useState<string | null>(null);
 
   useEffect(() => {
     axios.get("/api/clients").then((r) => {
@@ -22,7 +24,7 @@ export default function CreancesPage() {
 
   return (
     <div>
-      <h3 className="mb-3">Créances clients</h3>
+      <h3 className="mb-3 titre-page">Créances clients</h3>
 
       <Card className="shadow-sm mb-3">
         <Card.Body className="fs-5">
@@ -70,8 +72,8 @@ export default function CreancesPage() {
                 <td className="text-end">{fmtMontant(f.totalPaye)}</td>
                 <td className="text-end text-warning fw-bold">{fmtMontant(f.resteAPaye)}</td>
                 <td>
-                  <Button size="sm" variant="outline-primary"
-                    onClick={() => window.open(`/dashboard/factures/${f._id}/impression`, "_blank")}>
+                  <Button size="sm" variant="outline-primary" title="Voir la facture"
+                    onClick={() => setApercuId(f._id)}>
                     <i className="bi bi-receipt"></i>
                   </Button>
                 </td>
@@ -83,6 +85,8 @@ export default function CreancesPage() {
           </tbody>
         </Table>
       </Card>
+
+      <PdfPreviewModal type="facture" id={apercuId} show={!!apercuId} onHide={() => setApercuId(null)} />
     </div>
   );
 }
