@@ -12,7 +12,9 @@ type Ctx = { params: Promise<{ id: string }> };
  * Inverse du transfert : le devis repasse en brouillon non envoyé.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin", "achat"]);
+  const { user, error } = await requireAuth(req, ["admin", "achat"], {
+    actions: ["renvoi_devis"],
+  });
   if (error) return error;
   await db();
 

@@ -235,6 +235,112 @@ h3.titre-page::after {
   background-color: var(--novasys-red-light);
 }
 
+/* Grille des lignes de devis : défilement horizontal contenu,
+   colonne « # » fixe à gauche, actions fixes à droite */
+.grille-devis {
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--novasys-grey) transparent;
+}
+
+.grille-devis::-webkit-scrollbar {
+  height: 8px;
+}
+
+.grille-devis::-webkit-scrollbar-thumb {
+  background-color: var(--novasys-grey);
+  border-radius: 4px;
+}
+
+.grille-devis::-webkit-scrollbar-track {
+  background-color: var(--novasys-border);
+}
+
+.grille-devis .col-fixe-g,
+.grille-devis .col-fixe-d {
+  position: sticky;
+  z-index: 2;
+  background-color: #fff;
+}
+
+.grille-devis .col-fixe-g {
+  left: 0;
+  border-right: 1px solid var(--novasys-border);
+}
+
+.grille-devis .col-fixe-d {
+  right: 0;
+  border-left: 1px solid var(--novasys-border);
+}
+
+.grille-devis thead .col-fixe-g,
+.grille-devis thead .col-fixe-d {
+  background-color: var(--novasys-anthracite);
+  z-index: 3;
+}
+
+.grille-devis tfoot .col-fixe-g,
+.grille-devis tfoot .col-fixe-d {
+  background-color: var(--bs-light, #f8f9fa);
+}
+
+.grille-devis tbody tr:nth-of-type(even) .col-fixe-g,
+.grille-devis tbody tr:nth-of-type(even) .col-fixe-d {
+  background-color: #fafbfc;
+}
+
+.grille-devis tbody tr:hover .col-fixe-g,
+.grille-devis tbody tr:hover .col-fixe-d {
+  background-color: var(--novasys-red-light);
+}
+
+/* Cellules alignées en haut (description multiligne) */
+.grille-devis tbody td {
+  vertical-align: top;
+}
+
+/* Colonnes calculées (Résultat) : fond légèrement teinté, lecture seule */
+.grille-devis tbody .col-resultat {
+  background-color: var(--novasys-red-light);
+}
+
+/* Champs numériques : alignés à droite, sans flèches */
+.grille-devis input[type="number"] {
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.grille-devis input[type="number"]::-webkit-outer-spin-button,
+.grille-devis input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Aperçu PDF : fenêtre quasi plein écran sur grand écran */
+@media (min-width: 768px) {
+  .modal-apercu-pdf {
+    width: 95vw;
+    max-width: 1600px;
+    height: calc(100vh - 2rem);
+    margin: 1rem auto;
+  }
+  .modal-apercu-pdf .modal-content {
+    height: 100%;
+  }
+  .modal-apercu-pdf .pdf-preview-body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .modal-apercu-pdf .modal-header {
+    padding: 0.5rem 1rem;
+  }
+  .modal-apercu-pdf .modal-footer {
+    padding: 0.4rem 1rem;
+  }
+}
+
 /* Aperçu PDF plein écran : l'iframe occupe la place disponible */
 .modal-fullscreen-md-down .pdf-preview-body,
 .modal-fullscreen .pdf-preview-body {

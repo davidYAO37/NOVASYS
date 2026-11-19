@@ -12,7 +12,9 @@ type Ctx = { params: Promise<{ id: string }> };
  * (les lignes restantes ne seront plus commandées).
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin", "achat"]);
+  const { user, error } = await requireAuth(req, ["admin", "achat"], {
+    actions: ["cloture_commande"],
+  });
   if (error) return error;
   await db();
 
@@ -39,7 +41,9 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
 /** Rouvrir un devis clôturé manuellement (statut recalculé). */
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin", "achat"]);
+  const { user, error } = await requireAuth(req, ["admin", "achat"], {
+    actions: ["cloture_commande"],
+  });
   if (error) return error;
   await db();
 

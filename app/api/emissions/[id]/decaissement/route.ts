@@ -13,7 +13,9 @@ type Ctx = { params: Promise<{ id: string }> };
  * paiement fournisseur, met à jour les soldes et écrit en caisse.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin", "comptable", "caisse"]);
+  const { user, error } = await requireAuth(req, ["admin", "comptable", "caisse"], {
+    actions: ["decaissement"],
+  });
   if (error) return error;
   await db();
 
@@ -42,6 +44,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   }
 
   const saisiPar = `${user.nom} ${user.prenom}`.trim();
+  const mode = data.modeReglement || emission.modeReglement;
+  // Ne conserver que les références du mode choisi
+  const banque = ["Chèque", "Virement", "Carte bancaire"].includes(mode)
+    ? data.banque || emission.banque
+    : "";
+  const numCheque = mode === "Chèque" ? data.numCheque || emission.numCheque : "";
+  const numVirement = mode === "Virement" ? data.numVirement || emission.numVirement : "";
+  const numTel = mode === "Mobile Money" ? data.numTel || emission.numTel : "";
 
   const paiement = await PaiementFournisseur.create({
     datePaiement: data.datePaiement || new Date(),
@@ -51,9 +61,11 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     totalAPayer: emission.montantTotal,
     montantPaye: montant,
     resteAPaye: (emission.resteAPaye || 0) - montant,
-    modeReglement: data.modeReglement || emission.modeReglement,
-    banque: data.banque || emission.banque,
-    numCheque: data.numCheque || emission.numCheque,
+    modeReglement: mode,
+    banque,
+    numCheque,
+    numVirement,
+    numTel,
     objetAchat: data.objetAchat || `Émission ${emission.numEmission || ""}`,
     reglementFournisseurId: emission._id,
     fournisseurId: emission.fournisseurId,

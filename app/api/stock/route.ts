@@ -6,7 +6,7 @@ import { EntreeStock } from "@/models/entreeStock";
 import { SortieStock } from "@/models/sortieStock";
 import { Article } from "@/models/article";
 
-const ROLES = ["admin", "stock", "caisse"];
+const ROLES = ["admin", "stock"];
 
 /** Stock courant + alertes (FI_Alerte_Stock). */
 export async function GET(req: NextRequest) {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
  * Une sortie supérieure au stock est refusée.
  */
 export async function POST(req: NextRequest) {
-  const { user, error } = await requireAuth(req, ["admin", "stock", "caisse"]);
+  const { user, error } = await requireAuth(req, ["admin", "stock"]);
   if (error) return error;
   await db();
 

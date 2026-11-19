@@ -38,6 +38,8 @@ export interface JWTPayload {
   userId: string;
   email: string;
   type: string;
+  /** Incrémenté au changement de mot de passe : révoque les anciens jetons. */
+  tv?: number;
 }
 
 export function signToken(payload: JWTPayload): string {
@@ -79,6 +81,8 @@ export async function getCurrentUser(req?: NextRequest): Promise<CurrentUser | n
 
   if (!user) return null;
   if (user.comptebloque) return null;
+  // Jeton émis avant un changement de mot de passe → invalide
+  if ((payload.tv || 0) !== (user.tokenVersion || 0)) return null;
 
   return {
     _id: user._id.toString(),

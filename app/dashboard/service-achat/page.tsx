@@ -7,6 +7,8 @@ import dayjs from "dayjs";
 import { fmtDate, fmtMontant, STATUTS_ACHAT, STATUTS_COMMANDE } from "@/lib/format";
 import PdfPreviewModal from "@/components/print/PdfPreviewModal";
 import FicheFournisseurModal from "@/components/tiers/FicheFournisseurModal";
+import FicheTransitaireModal from "@/components/tiers/FicheTransitaireModal";
+import { calculerTotauxAchat } from "@/lib/calculAchat";
 
 /**
  * SERVICE ACHAT (FEN_SERVICE_ACHAT) : liste des devis reçus/traités de la
@@ -18,6 +20,12 @@ export default function ServiceAchatPage() {
   const [du, setDu] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
   const [au, setAu] = useState(dayjs().format("YYYY-MM-DD"));
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
+  const [transitaires, setTransitaires] = useState<any[]>([]);
+  const [transitaireId, setTransitaireId] = useState("");
+  const [showTransitaire, setShowTransitaire] = useState(false);
+  const [fraisTransport, setFraisTransport] = useState(0);
+  const [autreMontant, setAutreMontant] = useState(0);
+  const [tauxDouane, setTauxDouane] = useState(0);
   const [commande, setCommande] = useState<any>(null);
   const [selection, setSelection] = useState<Set<number>>(new Set());
   const [qtes, setQtes] = useState<Record<number, number>>({});
@@ -35,6 +43,7 @@ export default function ServiceAchatPage() {
   const [renvoi, setRenvoi] = useState<any>(null);
   const [motifRenvoi, setMotifRenvoi] = useState("");
   const [erreurRenvoi, setErreurRenvoi] = useState("");
+  const [me, setMe] = useState<any>(null);
 
   const charger = useCallback(() => {
     axios.get("/api/commandes", { params: { du, au, recues: "1" } })
@@ -44,6 +53,8 @@ export default function ServiceAchatPage() {
   useEffect(() => {
     charger();
     axios.get("/api/fournisseurs").then((r) => setFournisseurs(r.data)).catch(() => {});
+    axios.get("/api/transitaires").then((r) => setTransitaires(r.data)).catch(() => {});
+    axios.get("/api/me").then((r) => setMe(r.data?.user)).catch(() => {});
   }, [charger]);
 
   const rechargerCommande = async (id: string) => {
@@ -56,6 +67,10 @@ export default function ServiceAchatPage() {
     setMessageModal(null);
     setFournisseurId("");
     setDateLivraison("");
+    setTransitaireId("");
+    setFraisTransport(0);
+    setAutreMontant(0);
+    setTauxDouane(0);
     setSelection(new Set());
     setQtes({});
     setPrix({});
@@ -95,6 +110,7 @@ export default function ServiceAchatPage() {
   };
 
   const fournisseur = fournisseurs.find((f) => f._id === fournisseurId);
+  const transitaire = transitaires.find((t) => t._id === transitaireId);
 
   const lignesSel = useMemo(
     () =>
@@ -104,15 +120,17 @@ export default function ServiceAchatPage() {
     [commande, selection]
   );
 
-  const totaux = useMemo(() => {
-    const totalHT = lignesSel.reduce(
-      (s: number, l: any) =>
-        s + (qtes[l._index] ?? l.qteRestante ?? l.quantite) * (prix[l._index] ?? l.prixUnitaire ?? 0),
-      0
-    );
-    const totalTVA = (totalHT * tva) / 100;
-    return { totalHT, totalTVA, totalTTC: totalHT + totalTVA };
-  }, [lignesSel, qtes, prix, tva]);
+  const totaux = useMemo(
+    () =>
+      calculerTotauxAchat(
+        lignesSel.map((l: any) => ({
+          quantite: qtes[l._index] ?? l.qteRestante ?? l.quantite,
+          prixAchat: prix[l._index] ?? l.prixUnitaire ?? 0,
+        })),
+        { fraisTransport, autreMontant, tauxDouane, taux: tva }
+      ),
+    [lignesSel, qtes, prix, tva, fraisTransport, autreMontant, tauxDouane]
+  );
 
   const editerBonCommande = async () => {
     setMessageModal(null);
@@ -136,6 +154,10 @@ export default function ServiceAchatPage() {
         numAchatProfor: commande.numCommande,
         taux: tva,
         dateLivraison: dateLivraison || undefined,
+        transitaireId: transitaireId || undefined,
+        fraisTransport,
+        autreMontant,
+        tauxDouane,
         lignes: lignesSel.map((l: any) => ({
           ligneCdeId: l._id,
           reference: l.reference,
@@ -149,6 +171,10 @@ export default function ServiceAchatPage() {
       const nouvelle = await rechargerCommande(commande._id);
       setFournisseurId("");
       setDateLivraison("");
+      setTransitaireId("");
+      setFraisTransport(0);
+      setAutreMontant(0);
+      setTauxDouane(0);
       setSelection(new Set());
       setQtes({});
       setPrix({});
@@ -168,6 +194,8 @@ export default function ServiceAchatPage() {
   };
 
   const cloturee = commande?.statutC === "traitee";
+  const aAction = (code: string) =>
+    me?.permissions?.actions?.includes("*") || me?.permissions?.actions?.includes(code);
 
   return (
     <div>
@@ -223,11 +251,13 @@ export default function ServiceAchatPage() {
                         onClick={() => ouvrir(d)}>
                         <i className="bi bi-bag-plus me-1"></i>Bons de commande
                       </Button>
-                      <Button size="sm" variant="outline-danger"
-                        onClick={() => cloturer(d)}>
-                        <i className="bi bi-lock me-1"></i>Clôturer
-                      </Button>
-                      {d.statutC === "en_cours" && !d.bonAchat && (
+                      {aAction("cloture_commande") && (
+                        <Button size="sm" variant="outline-danger"
+                          onClick={() => cloturer(d)}>
+                          <i className="bi bi-lock me-1"></i>Clôturer
+                        </Button>
+                      )}
+                      {d.statutC === "en_cours" && !d.bonAchat && aAction("renvoi_devis") && (
                         <Button size="sm" variant="outline-warning" className="ms-1" title="Renvoyer au commercial"
                           onClick={() => { setRenvoi(d); setMotifRenvoi(""); setErreurRenvoi(""); }}>
                           <i className="bi bi-arrow-return-left me-1"></i>Renvoyer
@@ -235,7 +265,7 @@ export default function ServiceAchatPage() {
                       )}
                     </>
                   )}
-                  {d.clotureManuelle && (
+                  {d.clotureManuelle && aAction("cloture_commande") && (
                     <Button size="sm" variant="outline-warning" onClick={() => rouvrir(d)}>
                       <i className="bi bi-unlock me-1"></i>Rouvrir
                     </Button>
@@ -351,6 +381,39 @@ export default function ServiceAchatPage() {
                 </Col>
               </Row>
 
+              <Row className="g-3 mb-3">
+                <Col md={4}>
+                  <Form.Label>Transitaire</Form.Label>
+                  <InputGroup>
+                    <Form.Select value={transitaireId} onChange={(e) => setTransitaireId(e.target.value)}>
+                      <option value="">— Aucun —</option>
+                      {transitaires.map((t) => (
+                        <option key={t._id} value={t._id}>{t.nom}</option>
+                      ))}
+                    </Form.Select>
+                    <Button variant="outline-primary" title="Ajouter un transitaire"
+                      onClick={() => setShowTransitaire(true)}>
+                      <i className="bi bi-plus-lg"></i>
+                    </Button>
+                  </InputGroup>
+                </Col>
+                <Col md={2}>
+                  <Form.Label>Transport (FCFA)</Form.Label>
+                  <Form.Control type="number" min={0} value={fraisTransport}
+                    onChange={(e) => setFraisTransport(Number(e.target.value))} />
+                </Col>
+                <Col md={2}>
+                  <Form.Label>Autre montant (FCFA)</Form.Label>
+                  <Form.Control type="number" min={0} value={autreMontant}
+                    onChange={(e) => setAutreMontant(Number(e.target.value))} />
+                </Col>
+                <Col md={2}>
+                  <Form.Label>Douane (%)</Form.Label>
+                  <Form.Control type="number" min={0} value={tauxDouane}
+                    onChange={(e) => setTauxDouane(Number(e.target.value))} />
+                </Col>
+              </Row>
+
               <div className="mb-2 fw-semibold">Cocher les articles à commander chez le fournisseur :</div>
               <Table responsive size="sm" hover>
                 <thead>
@@ -412,6 +475,18 @@ export default function ServiceAchatPage() {
               </Table>
 
               <div className="text-end">
+                {(totaux.fraisTransport > 0 || totaux.autreMontant > 0 || totaux.montantDouane > 0) && (
+                  <div>Sous-total articles HT : <strong>{fmtMontant(totaux.sousTotalHT)} FCFA</strong></div>
+                )}
+                {totaux.fraisTransport > 0 && (
+                  <div>Transport{transitaire ? ` — ${transitaire.nom}` : ""} : <strong>{fmtMontant(totaux.fraisTransport)} FCFA</strong></div>
+                )}
+                {totaux.autreMontant > 0 && (
+                  <div>Autre montant : <strong>{fmtMontant(totaux.autreMontant)} FCFA</strong></div>
+                )}
+                {totaux.montantDouane > 0 && (
+                  <div>Douane ({totaux.tauxDouane} %) : <strong>{fmtMontant(totaux.montantDouane)} FCFA</strong></div>
+                )}
                 <div>Total HT : <strong>{fmtMontant(totaux.totalHT)} FCFA</strong></div>
                 <div>TVA ({tva} %) : <strong>{fmtMontant(totaux.totalTVA)} FCFA</strong></div>
                 <div className="fs-5">Total TTC : <strong>{fmtMontant(totaux.totalTTC)} FCFA</strong></div>
@@ -436,6 +511,16 @@ export default function ServiceAchatPage() {
           setFournisseurs((fs) => [nouveau, ...fs]);
           setFournisseurId(nouveau._id);
           setShowFournisseur(false);
+        }}
+      />
+
+      <FicheTransitaireModal
+        show={showTransitaire}
+        onHide={() => setShowTransitaire(false)}
+        onSaved={(nouveau) => {
+          setTransitaires((ts) => [nouveau, ...ts]);
+          setTransitaireId(nouveau._id);
+          setShowTransitaire(false);
         }}
       />
 

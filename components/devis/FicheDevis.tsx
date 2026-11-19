@@ -6,11 +6,13 @@ import axios from "axios";
 import { fmtMontant } from "@/lib/format";
 import { calculerLigne, calculerTotaux } from "@/lib/calculDevis";
 import FicheClientModal from "@/components/tiers/FicheClientModal";
+import FicheArticleModal from "@/components/stock/FicheArticleModal";
 
 export interface LigneDevis {
   numSerie: string;
   reference: string;
   articleM: string;
+  articleId?: string;
   description: string;
   quantite: number;
   prixUnitaire: number;
@@ -27,7 +29,7 @@ export interface LigneDevis {
 }
 
 export const LIGNE_DEVIS_VIDE: LigneDevis = {
-  numSerie: "", reference: "", articleM: "", description: "", quantite: 1,
+  numSerie: "", reference: "", articleM: "", articleId: "", description: "", quantite: 1,
   prixUnitaire: 0, tauxMarge: 0, valeurConvertisseur: 0, tauxDeDouanement: 0,
   fraisTransport: 0, tauxBancaire: 0, autreMontant: 0, prixUnitaireHT: 0,
   prixTotalHT: 0, fournisseur: "", fournisseurId: "",
@@ -39,7 +41,9 @@ const ENTETE_VIDE = {
   tauxRemise: 0, numComm: "", totalPaye: 0,
 };
 
-const TITLE_COEF = "Coefficient multiplicateur (ex. 1,20) — 0 = sans effet";
+const TITLE_PCT =
+  "Pourcentage de Prix unitaire × Valeur (ou du Prix unitaire seul si Valeur = 0), ajouté au PU HT";
+const TITLE_VALEUR = "Valeur de conversion en FCFA — 0 = non utilisée";
 
 type Props = {
   initial?: any;
@@ -56,6 +60,8 @@ type Props = {
 export default function FicheDevis({ initial, readOnly = false, onSubmit, submitLabel = "Valider la Commande" }: Props) {
   const [clients, setClients] = useState<any[]>([]);
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
+  const [articles, setArticles] = useState<any[]>([]);
+  const [ligneArticle, setLigneArticle] = useState<number | null>(null);
   const [clientId, setClientId] = useState(initial?.clientId || "");
   const [showClient, setShowClient] = useState(false);
   const [entete, setEntete] = useState<any>({ ...ENTETE_VIDE, ...(initial || {}), numComm: initial?.numComm || "" });
@@ -66,11 +72,17 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
   );
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState("");
+  const [me, setMe] = useState<any>(null);
 
   useEffect(() => {
-    axios.get("/api/clients").then((r) => setClients(r.data)).catch(() => {});
-    axios.get("/api/fournisseurs").then((r) => setFournisseurs(r.data)).catch(() => {});
+    axios.get("/api/clients", { params: { tous: "1" } }).then((r) => setClients(r.data)).catch(() => {});
+    axios.get("/api/fournisseurs", { params: { tous: "1" } }).then((r) => setFournisseurs(r.data)).catch(() => {});
+    axios.get("/api/articles").then((r) => setArticles(r.data)).catch(() => {});
+    axios.get("/api/me").then((r) => setMe(r.data?.user)).catch(() => {});
   }, []);
+
+  const aAction = (code: string) =>
+    me?.permissions?.actions?.includes("*") || me?.permissions?.actions?.includes(code);
 
   const client = clients.find((c) => c._id === clientId);
   const clientHorsListe = !clientId && initial?.clientC;
@@ -79,6 +91,20 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
     setLignes((ls) => {
       const copie = [...ls];
       copie[i] = calculerLigne({ ...copie[i], [champ]: valeur });
+      return copie;
+    });
+  };
+
+  const choisirArticle = (i: number, articleId: string, liste?: any[]) => {
+    const a = (liste || articles).find((x) => x._id === articleId);
+    setLignes((ls) => {
+      const copie = [...ls];
+      copie[i] = calculerLigne({
+        ...copie[i],
+        articleId,
+        articleM: a?.designationA || "",
+        reference: a?.reference || "",
+      });
       return copie;
     });
   };
@@ -125,7 +151,7 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
   };
 
   const cellNum = (i: number, champ: keyof LigneDevis) => (
-    <Form.Control size="sm" type="number" value={lignes[i][champ] as number} disabled={readOnly}
+    <Form.Control size="sm" type="number" min={0} className="text-end" value={lignes[i][champ] as number} disabled={readOnly}
       onChange={(e) => majLigne(i, champ, Number(e.target.value))} />
   );
 
@@ -190,49 +216,75 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
             </Button>
           )}
         </Card.Header>
-        <div className="table-responsive">
-          <Table className="mb-0 align-middle" size="sm" style={{ minWidth: 1600 }}>
-            <thead className="table-light">
+        <div className="grille-devis">
+          <Table className="mb-0 align-middle table-novasys" size="sm" style={{ minWidth: 1840 }}>
+            <thead>
               <tr>
-                <th style={{ width: 90 }}>N°Série</th>
+                <th rowSpan={2} className="col-fixe-g text-center">#</th>
+                <th colSpan={4} className="text-center">Article</th>
+                <th colSpan={3} className="text-center">Quantité &amp; prix</th>
+                <th colSpan={4} className="text-center">Majorations (%)</th>
+                <th rowSpan={2} className="text-center" style={{ width: 100 }}>Autre montant</th>
+                <th colSpan={2} className="text-center col-resultat">Résultat</th>
+                <th rowSpan={2} className="text-center" style={{ width: 150 }}>Fournisseur</th>
+                {!readOnly && <th rowSpan={2} className="col-fixe-d" style={{ width: 40 }}></th>}
+              </tr>
+              <tr>
+                <th style={{ width: 90 }}>N° Série</th>
                 <th style={{ width: 110 }}>Référence</th>
-                <th style={{ minWidth: 160 }}>Article</th>
-                <th style={{ minWidth: 160 }}>Description</th>
+                <th style={{ minWidth: 240 }}>Article</th>
+                <th style={{ minWidth: 220 }}>Description</th>
                 <th style={{ width: 70 }}>Qté</th>
                 <th style={{ width: 100 }}>Prix unitaire</th>
-                <th style={{ width: 80 }} title={TITLE_COEF}>Marge (%)</th>
-                <th style={{ width: 90 }} title={TITLE_COEF}>Valeur (FCFA)</th>
-                <th style={{ width: 80 }} title={TITLE_COEF}>Douane (%)</th>
-                <th style={{ width: 80 }} title={TITLE_COEF}>Transp. (%)</th>
-                <th style={{ width: 80 }} title={TITLE_COEF}>Banque (%)</th>
-                <th style={{ width: 100 }}>Autre Montant</th>
-                <th style={{ width: 110 }} className="text-end">Prix unitaire HT</th>
-                <th style={{ width: 120 }} className="text-end">Montant Total HT</th>
-                <th style={{ width: 150 }}>Fournisseur</th>
-                {!readOnly && <th style={{ width: 40 }}></th>}
+                <th style={{ width: 90 }} title={TITLE_VALEUR}>Valeur (FCFA)</th>
+                <th style={{ width: 80 }} title={TITLE_PCT}>Marge</th>
+                <th style={{ width: 80 }} title={TITLE_PCT}>Douane</th>
+                <th style={{ width: 80 }} title={TITLE_PCT}>Transport</th>
+                <th style={{ width: 80 }} title={TITLE_PCT}>Banque</th>
+                <th style={{ width: 110 }} className="text-end col-resultat">Prix unitaire HT</th>
+                <th style={{ width: 120 }} className="text-end col-resultat">Montant total HT</th>
               </tr>
             </thead>
             <tbody>
               {lignesCalc.map((l, i) => (
                 <tr key={i}>
+                  <td className="col-fixe-g text-center">{i + 1}</td>
                   <td><Form.Control size="sm" value={l.numSerie || ""} disabled={readOnly}
                     onChange={(e) => majLigne(i, "numSerie", e.target.value)} /></td>
                   <td><Form.Control size="sm" value={l.reference || ""} disabled={readOnly}
                     onChange={(e) => majLigne(i, "reference", e.target.value)} /></td>
-                  <td><Form.Control size="sm" value={l.articleM || ""} disabled={readOnly}
-                    onChange={(e) => majLigne(i, "articleM", e.target.value)} /></td>
-                  <td><Form.Control size="sm" value={l.description || ""} disabled={readOnly}
+                  <td>
+                    <InputGroup size="sm">
+                      <Form.Select size="sm" value={l.articleId || ""} disabled={readOnly}
+                        onChange={(e) => choisirArticle(i, e.target.value)}>
+                        <option value="">
+                          {!l.articleId && l.articleM ? `${l.articleM} (hors liste)` : "— Sélectionner —"}
+                        </option>
+                        {articles.map((a) => (
+                          <option key={a._id} value={a._id}>{a.designationA} — {a.reference}</option>
+                        ))}
+                      </Form.Select>
+                      {!readOnly && me && aAction("creation_article") && (
+                        <Button variant="outline-primary" title="Nouvel article"
+                          onClick={() => setLigneArticle(i)}>
+                          <i className="bi bi-plus-lg"></i>
+                        </Button>
+                      )}
+                    </InputGroup>
+                  </td>
+                  <td><Form.Control size="sm" as="textarea" rows={2} style={{ resize: "vertical" }}
+                    value={l.description || ""} disabled={readOnly}
                     onChange={(e) => majLigne(i, "description", e.target.value)} /></td>
                   <td>{cellNum(i, "quantite")}</td>
                   <td>{cellNum(i, "prixUnitaire")}</td>
-                  <td>{cellNum(i, "tauxMarge")}</td>
                   <td>{cellNum(i, "valeurConvertisseur")}</td>
+                  <td>{cellNum(i, "tauxMarge")}</td>
                   <td>{cellNum(i, "tauxDeDouanement")}</td>
                   <td>{cellNum(i, "fraisTransport")}</td>
                   <td>{cellNum(i, "tauxBancaire")}</td>
                   <td>{cellNum(i, "autreMontant")}</td>
-                  <td className="text-end">{fmtMontant(l.prixUnitaireHT)}</td>
-                  <td className="text-end fw-semibold">{fmtMontant(l.prixTotalHT)}</td>
+                  <td className="text-end col-resultat">{fmtMontant(l.prixUnitaireHT)}</td>
+                  <td className="text-end fw-bold col-resultat">{fmtMontant(l.prixTotalHT)}</td>
                   <td>
                     <Form.Select size="sm" value={l.fournisseurId || ""} disabled={readOnly}
                       onChange={(e) => {
@@ -247,7 +299,7 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
                     </Form.Select>
                   </td>
                   {!readOnly && (
-                    <td>
+                    <td className="col-fixe-d text-center">
                       {lignes.length > 1 && (
                         <Button size="sm" variant="outline-danger"
                           onClick={() => setLignes(lignes.filter((_, j) => j !== i))}>
@@ -261,14 +313,20 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
             </tbody>
             <tfoot>
               <tr className="table-light fw-bold">
-                <td colSpan={4} className="text-end">Somme</td>
+                <td colSpan={5} className="text-end col-fixe-g">Somme</td>
                 <td>{sommeQte}</td>
                 <td colSpan={8}></td>
-                <td className="text-end">{fmtMontant(sommeHT)}</td>
+                <td className="text-end col-resultat">{fmtMontant(sommeHT)}</td>
                 <td colSpan={readOnly ? 1 : 2}></td>
               </tr>
             </tfoot>
           </Table>
+        </div>
+        <div className="px-3 pb-2 pt-1">
+          <small className="text-muted">
+            PU HT = PU × Valeur + PU × Valeur × (Marge + Douane + Transport + Banque) % + Autre montant
+            — si Valeur = 0 : PU + PU × (…) % + Autre montant — Montant HT = Qté × PU HT
+          </small>
         </div>
       </Card>
 
@@ -327,6 +385,17 @@ export default function FicheDevis({ initial, readOnly = false, onSubmit, submit
           setClients((cs) => [nouveau, ...cs]);
           setClientId(nouveau._id);
           setShowClient(false);
+        }}
+      />
+
+      <FicheArticleModal
+        show={ligneArticle !== null}
+        onHide={() => setLigneArticle(null)}
+        onSaved={(nouveau) => {
+          const liste = [nouveau, ...articles];
+          setArticles(liste);
+          if (ligneArticle !== null) choisirArticle(ligneArticle, nouveau._id, liste);
+          setLigneArticle(null);
         }}
       />
     </div>

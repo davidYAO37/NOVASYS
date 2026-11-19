@@ -15,13 +15,21 @@ export default function DetailFacturePage() {
   const [lignes, setLignes] = useState<any[]>([]);
   const [message, setMessage] = useState("");
   const [showPay, setShowPay] = useState(false);
-  const [pay, setPay] = useState({ montantPaye: 0, modeReglement: "Espèces", banque: "", numCheque: "", numVirement: "" });
+  const [pay, setPay] = useState({
+    montantPaye: 0, modeReglement: "Espèces",
+    banque: "", numCheque: "", numVirement: "", numTel: "",
+  });
+  const [me, setMe] = useState<any>(null);
+  const [annulationSel, setAnnulationSel] = useState<any>(null);
+  const [motifAnnulation, setMotifAnnulation] = useState("");
+  const [erreurAnnulation, setErreurAnnulation] = useState("");
 
   const charger = () => {
     axios.get(`/api/factures/${id}`).then((r) => {
       setFacture(r.data);
       setLignes(r.data.lignes || []);
     }).catch(() => setMessage("Facture introuvable"));
+    axios.get("/api/me").then((r) => setMe(r.data?.user)).catch(() => {});
   };
 
   useEffect(() => { charger(); /* eslint-disable-next-line */ }, [id]);
@@ -58,7 +66,30 @@ export default function DetailFacturePage() {
     }
   };
 
+  const demanderAnnulation = async () => {
+    setErreurAnnulation("");
+    try {
+      await axios.post(`/api/paiements-clients/${annulationSel._id}/annulation`, {
+        motif: motifAnnulation,
+      });
+      setAnnulationSel(null);
+      charger();
+    } catch (e: any) {
+      setErreurAnnulation(e.response?.data?.message || "Demande impossible");
+    }
+  };
+
   const statut = STATUTS_FACTURE[facture.statutC];
+  const estAdmin = ["admin", "adminsuper"].includes(me?.type);
+  const nomComplet = `${me?.nom || ""} ${me?.prenom || ""}`.trim();
+  const peutDemander = estAdmin ||
+    me?.permissions?.actions?.includes("*") ||
+    me?.permissions?.actions?.includes("annulation_encaissement");
+  const BADGES_ANNULATION: Record<string, { label: string; bg: string; text?: string }> = {
+    en_attente: { label: "En attente", bg: "warning", text: "dark" },
+    approuvee: { label: "Approuvée", bg: "success" },
+    rejetee: { label: "Rejetée", bg: "secondary" },
+  };
 
   return (
     <div>
@@ -146,11 +177,29 @@ export default function DetailFacturePage() {
               {facture.paiements.map((p: any) => (
                 <tr key={p._id}>
                   <td>{fmtDate(p.datePaiement)}</td>
-                  <td>{p.modeReglement}</td>
-                  <td>{[p.banque, p.numCheque || p.numVirement].filter(Boolean).join(" — ")}</td>
+                  <td>
+                    {p.modeReglement}
+                    {p.annule && <Badge bg="danger" className="ms-1">Annulé</Badge>}
+                    {!p.annule && p.demandeAnnulationStatut && (
+                      <Badge bg={BADGES_ANNULATION[p.demandeAnnulationStatut]?.bg || "secondary"}
+                        text={BADGES_ANNULATION[p.demandeAnnulationStatut]?.text as any} className="ms-1">
+                        {BADGES_ANNULATION[p.demandeAnnulationStatut]?.label || p.demandeAnnulationStatut}
+                      </Badge>
+                    )}
+                  </td>
+                  <td>{[p.banque, p.numCheque || p.numVirement || p.numTel].filter(Boolean).join(" — ")}</td>
                   <td className="text-end fw-semibold">{fmtMontant(p.montantPaye)}</td>
                   <td>{p.payePar}</td>
-                  <td className="text-end"><PdfButtons type="recu" id={p._id} /></td>
+                  <td className="text-end text-nowrap">
+                    <span className="me-1"><PdfButtons type="recu" id={p._id} /></span>
+                    {!p.annule && p.demandeAnnulationStatut !== "en_attente" &&
+                      peutDemander && (estAdmin || p.payePar === nomComplet) && (
+                      <Button size="sm" variant="outline-danger" title="Demander l'annulation"
+                        onClick={() => { setAnnulationSel(p); setMotifAnnulation(""); setErreurAnnulation(""); }}>
+                        <i className="bi bi-x-circle"></i>
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -186,18 +235,66 @@ export default function DetailFacturePage() {
               {MODES_REGLEMENT.map((m) => <option key={m}>{m}</option>)}
             </Form.Select>
           </Form.Group>
-          <Row className="g-2">
-            <Col><Form.Label>Banque</Form.Label>
-              <Form.Control value={pay.banque} onChange={(e) => setPay({ ...pay, banque: e.target.value })} /></Col>
-            <Col><Form.Label>N° Chèque</Form.Label>
-              <Form.Control value={pay.numCheque} onChange={(e) => setPay({ ...pay, numCheque: e.target.value })} /></Col>
-            <Col><Form.Label>N° Virement</Form.Label>
-              <Form.Control value={pay.numVirement} onChange={(e) => setPay({ ...pay, numVirement: e.target.value })} /></Col>
-          </Row>
+          {pay.modeReglement === "Chèque" && (
+            <Row className="g-2">
+              <Col><Form.Label>Banque</Form.Label>
+                <Form.Control value={pay.banque} onChange={(e) => setPay({ ...pay, banque: e.target.value })} /></Col>
+              <Col><Form.Label>N° Chèque</Form.Label>
+                <Form.Control value={pay.numCheque} onChange={(e) => setPay({ ...pay, numCheque: e.target.value })} /></Col>
+            </Row>
+          )}
+          {pay.modeReglement === "Virement" && (
+            <Row className="g-2">
+              <Col><Form.Label>Banque</Form.Label>
+                <Form.Control value={pay.banque} onChange={(e) => setPay({ ...pay, banque: e.target.value })} /></Col>
+              <Col><Form.Label>N° Virement</Form.Label>
+                <Form.Control value={pay.numVirement} onChange={(e) => setPay({ ...pay, numVirement: e.target.value })} /></Col>
+            </Row>
+          )}
+          {pay.modeReglement === "Mobile Money" && (
+            <Form.Group>
+              <Form.Label>N° de téléphone</Form.Label>
+              <Form.Control value={pay.numTel} onChange={(e) => setPay({ ...pay, numTel: e.target.value })} />
+            </Form.Group>
+          )}
+          {pay.modeReglement === "Carte bancaire" && (
+            <Form.Group>
+              <Form.Label>Banque</Form.Label>
+              <Form.Control value={pay.banque} onChange={(e) => setPay({ ...pay, banque: e.target.value })} />
+            </Form.Group>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowPay(false)}>Annuler</Button>
           <Button variant="success" onClick={encaisser}>Enregistrer le paiement</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Demande d'annulation d'un encaissement */}
+      <Modal show={!!annulationSel} onHide={() => setAnnulationSel(null)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Demander l&apos;annulation de l&apos;encaissement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {erreurAnnulation && <div className="alert alert-danger">{erreurAnnulation}</div>}
+          <p>
+            Montant : <strong>{fmtMontant(annulationSel?.montantPaye)} FCFA</strong><br />
+            Reçu de : <strong>{annulationSel?.recuDe || annulationSel?.clientC}</strong><br />
+            <span className="text-muted small">
+              La demande sera transmise à l&apos;administrateur pour approbation.
+            </span>
+          </p>
+          <Form.Group>
+            <Form.Label>Motif de la demande *</Form.Label>
+            <Form.Control as="textarea" rows={3} value={motifAnnulation}
+              onChange={(e) => setMotifAnnulation(e.target.value)} />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setAnnulationSel(null)}>Annuler</Button>
+          <Button variant="danger" onClick={demanderAnnulation} disabled={!motifAnnulation.trim()}>
+            Envoyer la demande
+          </Button>
         </Modal.Footer>
       </Modal>
     </div>

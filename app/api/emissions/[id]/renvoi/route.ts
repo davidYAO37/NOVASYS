@@ -11,7 +11,9 @@ type Ctx = { params: Promise<{ id: string }> };
  * (motif obligatoire) : les bons redeviennent modifiables et réémissibles.
  */
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin", "comptable"]);
+  const { user, error } = await requireAuth(req, ["admin", "comptable"], {
+    actions: ["renvoi_emission"],
+  });
   if (error) return error;
   await db();
 

@@ -20,6 +20,8 @@ export interface IReglementFournisseur extends Document {
   modeReglement?: string;
   banque?: string;
   numCheque?: string;
+  numVirement?: string;
+  numTel?: string;
   fournisseur?: string;
   delaisDeReglement?: string;
   alOrdreDe?: string;
@@ -49,6 +51,8 @@ const ReglementFournisseurSchema = new Schema<IReglementFournisseur>(
     modeReglement: { type: String },
     banque: { type: String },
     numCheque: { type: String },
+    numVirement: { type: String },
+    numTel: { type: String },
     fournisseur: { type: String },
     delaisDeReglement: { type: String },
     alOrdreDe: { type: String },

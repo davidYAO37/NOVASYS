@@ -44,6 +44,12 @@ interface DocumentPrintProps {
   totalTTC?: number;
   totalPaye?: number;
   resteAPaye?: number;
+  /** Lignes de détail avant le Total HT (ex. transport, douane d'un bon d'achat) */
+  detailTotaux?: { label: string; montant: number }[];
+  /** Libellé TVA personnalisé (ex. « TVA (18 %) ») */
+  labelTVA?: string;
+  /** Ligne libre sous le bloc totaux (ex. transitaire) */
+  complement?: string;
   modeReglement?: string;
   sansPrix?: boolean; // bon de livraison sans montants
   piedDePage?: string;
@@ -111,6 +117,9 @@ export default function DocumentPrint({
   totalTTC,
   totalPaye,
   resteAPaye,
+  detailTotaux,
+  labelTVA,
+  complement,
   modeReglement,
   sansPrix,
   piedDePage,
@@ -175,7 +184,9 @@ export default function DocumentPrint({
             <tr key={i}>
               <td>{i + 1}</td>
               <td>{l.reference || "—"}</td>
-              <td>{l.articleM || l.description || "—"}</td>
+              <td style={{ whiteSpace: "pre-line" }}>
+                {[l.articleM, l.description].filter(Boolean).join("\n") || "—"}
+              </td>
               <td className="text-end">{l.quantite ?? 0}</td>
               {!sansPrix && (
                 <>
@@ -194,10 +205,17 @@ export default function DocumentPrint({
         <div className="row">
           <div className="col-6">
             {modeReglement && <div>Mode de règlement : {modeReglement}</div>}
+            {complement && <div style={{ whiteSpace: "pre-line" }}>{complement}</div>}
           </div>
           <div className="col-6">
             <table className="table table-sm">
               <tbody>
+                {(detailTotaux || []).map((d, i) => (
+                  <tr key={i}>
+                    <td>{d.label}</td>
+                    <td className="text-end">{fmtMontant(d.montant)}</td>
+                  </tr>
+                ))}
                 {(mainDoeuvre || 0) > 0 && (
                   <tr>
                     <td>Dont main d&apos;œuvre</td>
@@ -221,7 +239,7 @@ export default function DocumentPrint({
                   </>
                 )}
                 <tr>
-                  <td>TVA</td>
+                  <td>{labelTVA || "TVA"}</td>
                   <td className="text-end">{fmtMontant(totalTVA)}</td>
                 </tr>
                 <tr className="table-primary">

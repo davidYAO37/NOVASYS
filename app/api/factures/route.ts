@@ -6,12 +6,13 @@ import { LigneFacture } from "@/models/ligneFacture";
 import { Commande } from "@/models/commande";
 import { Client } from "@/models/client";
 import { nextNumero } from "@/lib/numero";
+import { estCommercial, filtreCreateur, idsClientsTravailles } from "@/lib/portee";
 
-const ROLES = ["admin", "achat", "caisse", "comptable"];
+const ROLES = ["admin", "achat", "caisse", "comptable", "commercial"];
 
 /** Liste des factures — période, client, statut (FEN_FIche_Nouvelle_Facture / liste). */
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth(req, ROLES);
+  const { user, error } = await requireAuth(req, ROLES);
   if (error) return error;
   await db();
 
@@ -35,6 +36,15 @@ export async function GET(req: NextRequest) {
   if (clientId) filtre.clientId = clientId;
   if (statut) filtre.statutC = statut;
   if (nonSoldees === "1") filtre.resteAPaye = { $gt: 0 };
+
+  // Commercial : factures de ses clients (créés par lui, sans créateur,
+  // ou clients de ses devis) et des factures sans client lié
+  if (estCommercial(user)) {
+    const clientsVisibles = await Client.find(filtreCreateur(user)).distinct("_id");
+    const idsTravailles = await idsClientsTravailles(user);
+    const ids = [...clientsVisibles, ...[...idsTravailles].map((x) => x)];
+    filtre.$or = [{ clientId: { $in: ids } }, { clientId: null }, { clientId: { $exists: false } }];
+  }
 
   const factures = await FactureClient.find(filtre).sort({ dateFacture: -1 }).limit(500).lean();
   return NextResponse.json(factures);

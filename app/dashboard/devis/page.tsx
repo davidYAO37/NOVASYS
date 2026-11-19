@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
@@ -20,6 +20,7 @@ function GestionDevis() {
   const [du, setDu] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
   const [au, setAu] = useState(dayjs().format("YYYY-MM-DD"));
   const [statut, setStatut] = useState(params.get("statut") || "");
+  const [saisiPar, setSaisiPar] = useState("");
   const [showDocs, setShowDocs] = useState(false);
   const [docs, setDocs] = useState<any[]>([]);
   const [docCommande, setDocCommande] = useState<any>(null);
@@ -91,27 +92,35 @@ function GestionDevis() {
   };
 
   const peutAnnulerTransfert =
-    me?.type === "admin" || me?.type === "adminsuper" ||
+    me?.type === "admin" || me?.type === "adminsuper" || me?.type === "commercial" ||
     me?.permissions?.actions?.includes("annulation_transfert") ||
     me?.permissions?.actions?.includes("*");
+
+  // Administrateur : colonne et filtre « Saisi par » (filtrage côté écran)
+  const estAdmin = me?.type === "admin" || me?.type === "adminsuper";
+  const auteurs = useMemo(
+    () => [...new Set(commandes.map((c) => c.saisiePar).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr")),
+    [commandes]
+  );
+  const liste = estAdmin && saisiPar ? commandes.filter((c) => c.saisiePar === saisiPar) : commandes;
 
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h3 className="mb-0 titre-page">Gestion des commandes</h3>
+        <h3 className="mb-0 titre-page">Gestion des devis</h3>
         <Button onClick={() => router.push("/dashboard/devis/nouveau")}>
-          <i className="bi bi-plus-lg me-1"></i>Nouvelle commande
+          <i className="bi bi-plus-lg me-1"></i>Nouveau devis
         </Button>
       </div>
 
       <Card className="shadow-sm mb-3">
         <Card.Body>
           <Row className="g-2 align-items-end">
-            <Col xs={12} sm={6} md={3}>
+            <Col xs={12} sm={6} md={estAdmin ? 2 : 3}>
               <Form.Label>Du</Form.Label>
               <Form.Control type="date" value={du} onChange={(e) => setDu(e.target.value)} />
             </Col>
-            <Col xs={12} sm={6} md={3}>
+            <Col xs={12} sm={6} md={estAdmin ? 2 : 3}>
               <Form.Label>Au</Form.Label>
               <Form.Control type="date" value={au} onChange={(e) => setAu(e.target.value)} />
             </Col>
@@ -124,7 +133,16 @@ function GestionDevis() {
                 ))}
               </Form.Select>
             </Col>
-            <Col xs={12} sm={6} md={3}>
+            {estAdmin && (
+              <Col xs={12} sm={6} md={3}>
+                <Form.Label>Saisi par</Form.Label>
+                <Form.Select value={saisiPar} onChange={(e) => setSaisiPar(e.target.value)}>
+                  <option value="">Tous</option>
+                  {auteurs.map((a) => <option key={a} value={a}>{a}</option>)}
+                </Form.Select>
+              </Col>
+            )}
+            <Col xs={12} sm={6} md={estAdmin ? 2 : 3}>
               <Button variant="outline-primary" onClick={charger} className="w-100">
                 <i className="bi bi-arrow-clockwise me-1"></i>Actualiser
               </Button>
@@ -142,6 +160,7 @@ function GestionDevis() {
               <th>Date</th>
               <th>Client</th>
               <th>Objet</th>
+              {estAdmin && <th>Saisi par</th>}
               <th className="text-end">Total TTC</th>
               <th>Statut</th>
               <th>Service achat</th>
@@ -149,13 +168,14 @@ function GestionDevis() {
             </tr>
           </thead>
           <tbody>
-            {commandes.map((c) => (
+            {liste.map((c) => (
               <tr key={c._id}>
                 <td className="fw-semibold">{c.numCommande}</td>
                 <td>{c.numComm}</td>
                 <td>{fmtDate(c.dateCommande)}</td>
                 <td>{c.clientC}</td>
                 <td>{c.objetCommande}</td>
+                {estAdmin && <td>{c.saisiePar}</td>}
                 <td className="text-end">{fmtMontant(c.totalTTC)}</td>
                 <td>
                   <Badge bg={STATUTS_COMMANDE[c.statutC]?.color || "secondary"} className="badge-statut">
@@ -205,8 +225,8 @@ function GestionDevis() {
                 </td>
               </tr>
             ))}
-            {!commandes.length && (
-              <tr><td colSpan={9} className="text-center text-muted py-4">Aucune commande sur la période</td></tr>
+            {!liste.length && (
+              <tr><td colSpan={estAdmin ? 10 : 9} className="text-center text-muted py-4">Aucune commande sur la période</td></tr>
             )}
           </tbody>
         </Table>

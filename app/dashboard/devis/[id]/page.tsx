@@ -57,6 +57,17 @@ export default function DetailDevisPage() {
     }
   };
 
+  const reprendre = async () => {
+    if (!confirm("Reprendre ce devis du service achat pour le modifier ?")) return;
+    try {
+      await axios.delete(`/api/commandes/${id}/transfert`);
+      setMessage("Devis repris : il n'est plus au service achat");
+      charger();
+    } catch (e: any) {
+      alert(e.response?.data?.message || "Reprise impossible");
+    }
+  };
+
   const statut = STATUTS_COMMANDE[commande.statutC];
 
   return (
@@ -72,6 +83,11 @@ export default function DetailDevisPage() {
           {!commande.serviceAchat && (
             <Button variant="success" className="me-2" onClick={transferer}>
               <i className="bi bi-send me-1"></i>Transférer au service achat
+            </Button>
+          )}
+          {commande.serviceAchat && commande.statutC === "en_cours" && (
+            <Button variant="outline-warning" className="me-2" onClick={reprendre}>
+              <i className="bi bi-arrow-counterclockwise me-1"></i>Reprendre le devis
             </Button>
           )}
           <Button variant="outline-secondary" onClick={() => router.push("/dashboard/devis")}>

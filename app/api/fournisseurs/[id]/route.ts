@@ -4,7 +4,7 @@ import { db } from "@/db/mongoConnect";
 import { Fournisseur } from "@/models/fournisseur";
 import { Achat } from "@/models/achat";
 import { ReglementFournisseur } from "@/models/reglementFournisseur";
-import { peutVoirCreateur } from "@/lib/portee";
+import { peutVoirCreateur, peutConsulterFournisseur } from "@/lib/portee";
 
 const ROLES = ["admin", "commercial", "achat", "comptable"];
 
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const fournisseur = await Fournisseur.findById(id).lean();
-  if (!fournisseur || !peutVoirCreateur(user, fournisseur)) {
+  if (!fournisseur || !(await peutConsulterFournisseur(user, fournisseur))) {
     return NextResponse.json({ message: "Fournisseur introuvable" }, { status: 404 });
   }
 
@@ -37,10 +37,13 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
   const { id } = await ctx.params;
   const data = await req.json();
-  delete data.saisiePar;
-  delete data.creerPar;
+  for (const k of [
+    "saisiePar", "creerPar", "modifiePar", "compteFournisseur", "montantPaye", "resteAPaye",
+  ]) {
+    delete data[k];
+  }
   const existant = await Fournisseur.findById(id).select("creerPar").lean();
-  if (!existant || !peutVoirCreateur(user, existant)) {
+  if (!existant || !(await peutConsulterFournisseur(user, existant))) {
     return NextResponse.json({ message: "Fournisseur introuvable" }, { status: 404 });
   }
   const fournisseur = await Fournisseur.findByIdAndUpdate(

@@ -10,9 +10,12 @@ import { Achat } from "@/models/achat";
 import { LigneAchat } from "@/models/ligneAchat";
 import { Client } from "@/models/client";
 import { Fournisseur } from "@/models/fournisseur";
+import { Transitaire } from "@/models/transitaire";
 import { PaiementClient } from "@/models/paiementClient";
+import { PaiementFournisseur } from "@/models/paiementFournisseur";
+import { ReglementFournisseur } from "@/models/reglementFournisseur";
 import { genererDocumentPdf, DonneesDocumentPdf } from "@/lib/pdf/documents";
-import { peutVoirSaisie } from "@/lib/portee";
+import { peutConsulterClient, peutVoirSaisie } from "@/lib/portee";
 
 /**
  * Génération PDF des états NOVASYS :
@@ -20,16 +23,18 @@ import { peutVoirSaisie } from "@/lib/portee";
  *   bl            → ETAT_Bon_de_livraison
  *   proforma      → ETAT_Proforma
  *   bon-commande  → ETAT_Bon_de_commande (achat fournisseur)
- *   recu          → ETAT_Recu (paiement client)
+ *   recu          → ETAT_Recu (paiement client) + reçu de décaissement fournisseur
  *
  * `?avecEntete=false` : impression sans logo/entête/pied (papier pré-imprimé).
  */
 const ROLES: Record<string, string[]> = {
-  facture: ["admin", "achat", "caisse", "comptable"],
-  bl: ["admin", "achat", "caisse", "comptable"],
+  // Guide commercial : voir factures / BL du client et bons de commande du fournisseur
+  facture: ["admin", "commercial", "achat", "caisse", "comptable"],
+  bl: ["admin", "commercial", "achat", "caisse", "comptable"],
   proforma: ["admin", "commercial", "achat"],
-  "bon-commande": ["admin", "achat", "comptable"],
-  recu: ["admin", "caisse", "comptable"],
+  "bon-commande": ["admin", "commercial", "achat", "comptable"],
+  // recu : achat autorisé pour les reçus de décaissement fournisseur seulement
+  recu: ["admin", "achat", "caisse", "comptable"],
 };
 
 async function construireDonnees(type: string, id: string, user: CurrentUser): Promise<DonneesDocumentPdf | null> {
@@ -40,6 +45,7 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
       if (!f) return null;
       const lignes = await LigneFacture.find({ factureId: f._id }).lean();
       const client = f.clientId ? await Client.findById(f.clientId).lean() : null;
+      if (!(await peutConsulterClient(user, client))) return null;
       const estBL = type === "bl";
       return {
         titre: estBL ? "Bon de livraison" : "Facture",
@@ -99,7 +105,8 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
           boitePostale: c.boitePostale,
         },
         objet: c.objetCommande,
-        lignes,
+        // Le client voit le PU HT (prix majoré), jamais le prix d'achat saisi
+        lignes: lignes.map((l) => ({ ...l, prixUnitaire: l.prixUnitaireHT ?? l.prixUnitaire })),
         totaux: {
           totalHT: c.totalHT,
           remise: c.remise,
@@ -119,6 +126,20 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
       if (!a) return null;
       const lignes = await LigneAchat.find({ achatId: a._id }).lean();
       const four = a.fournisseurId ? await Fournisseur.findById(a.fournisseurId).lean() : null;
+      const trans = a.transitaireId ? await Transitaire.findById(a.transitaireId).lean() : null;
+      // Détail des totaux (transport, autre montant, douane) : uniquement les
+      // valeurs renseignées ; les anciens bons sans ces champs restent inchangés.
+      const detail: { label: string; montant: number }[] = [];
+      const aDesExtras =
+        (a.fraisTransport || 0) > 0 || (a.autreMontant || 0) > 0 || (a.montantDouane || 0) > 0;
+      if (aDesExtras && (a.sousTotalHT || 0) > 0) {
+        detail.push({ label: "Sous-total articles HT", montant: a.sousTotalHT || 0 });
+      }
+      if ((a.fraisTransport || 0) > 0) detail.push({ label: "Transport", montant: a.fraisTransport || 0 });
+      if ((a.autreMontant || 0) > 0) detail.push({ label: "Autre montant", montant: a.autreMontant || 0 });
+      if ((a.montantDouane || 0) > 0) {
+        detail.push({ label: `Douane (${a.tauxDouane || 0} %)`, montant: a.montantDouane || 0 });
+      }
       return {
         titre: "Bon de commande",
         numero: a.numAchat,
@@ -142,12 +163,16 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
           prixTotalHT: l.prixTHT,
         })),
         totaux: {
+          detail,
           totalHT: a.totalHT,
           totalTVA: a.totalTVA,
           totalTTC: a.totalTTC,
+          labelTVA: `TVA (${a.taux || 0} %)`,
         },
         montantEnLettres: a.totalTTC,
         complement: [
+          a.transitaire &&
+            `Transitaire : ${a.transitaire}${trans?.telephone ? ` — ${trans.telephone}` : ""}`,
           a.modeReglement && `Règlement : ${a.modeReglement}`,
           a.banque && `Banque : ${a.banque}`,
           a.numCheque && `Chèque n° ${a.numCheque}`,
@@ -160,10 +185,87 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
 
     case "recu": {
       const p = await PaiementClient.findById(id).lean();
-      if (!p) return null;
+      if (!p) {
+        // Reçu de décaissement fournisseur (émission de chèque)
+        const pf = await PaiementFournisseur.findById(id).lean();
+        if (!pf) return null;
+        const emission = pf.reglementFournisseurId
+          ? await ReglementFournisseur.findById(pf.reglementFournisseurId).lean()
+          : null;
+        const historique = (
+          await PaiementFournisseur.find(
+            pf.reglementFournisseurId ? { reglementFournisseurId: pf.reglementFournisseurId } : { _id: pf._id }
+          ).sort({ datePaiement: 1, createdAt: 1 }).lean()
+        ).map((h) => ({
+          numero: `DEC-${String(h._id).slice(-6).toUpperCase()}`,
+          date: h.datePaiement,
+          libelle: `Décaissement ${h.modeReglement || ""}`.trim(),
+          reference: h.numCheque || h.numVirement || h.numTel,
+          montant: h.montantPaye,
+          annule: h.annule,
+          courant: String(h._id) === String(pf._id),
+        }));
+        return {
+          titre: "Reçu de décaissement",
+          numero: `DEC-${String(pf._id).slice(-6).toUpperCase()}`,
+          annule: pf.annule,
+          date: pf.datePaiement,
+          devise: pf.deviseM,
+          tiers: { label: "Payé à", nom: pf.recuDe || pf.fournisseur },
+          objet: pf.objetAchat || (emission?.numEmission ? `Émission ${emission.numEmission}` : undefined),
+          lignes: [
+            {
+              reference: emission?.numEmission,
+              articleM: `Décaissement ${pf.modeReglement || ""}`.trim(),
+              quantite: 1,
+              prixUnitaire: pf.montantPaye,
+              prixTotalHT: pf.montantPaye,
+            },
+          ],
+          totaux: {
+            totalHT: pf.montantPaye,
+            totalTVA: 0,
+            totalTTC: pf.montantPaye,
+            totalPaye: pf.montantPaye,
+            resteAPaye: pf.resteAPaye,
+          },
+          montantEnLettres: pf.montantPaye,
+          complement: [
+            pf.alOrdreDe && `À l'ordre de : ${pf.alOrdreDe}`,
+            pf.banque && `Banque : ${pf.banque}`,
+            pf.numCheque && `Chèque n° ${pf.numCheque}`,
+            pf.numVirement && `Virement n° ${pf.numVirement}`,
+            pf.numTel && `Téléphone : ${pf.numTel}`,
+            pf.delaisDeReglement && `Délai de règlement : ${pf.delaisDeReglement}`,
+            pf.payePar && `Décaissé par : ${pf.payePar}`,
+          ].filter(Boolean).join("\n") || undefined,
+          historique,
+          signatureGauche: "Le Fournisseur",
+          signatureDroite: "La Comptabilité",
+        };
+      }
+      // Reçus de paiement client : réservés caisse / compta / admin
+      if (user.type === "achat") return null;
+      const filtreHisto = p.factureId
+        ? { factureId: p.factureId }
+        : p.commandeId
+          ? { commandeId: p.commandeId }
+          : { _id: p._id };
+      const historique = (
+        await PaiementClient.find(filtreHisto).sort({ datePaiement: 1, createdAt: 1 }).lean()
+      ).map((h) => ({
+        numero: `REC-${String(h._id).slice(-6).toUpperCase()}`,
+        date: h.datePaiement,
+        libelle: `Règlement ${h.modeReglement || ""}`.trim(),
+        reference: h.numCheque || h.numVirement || h.numTel,
+        montant: h.montantPaye,
+        annule: h.annule,
+        courant: String(h._id) === String(p._id),
+      }));
       return {
         titre: "Reçu de paiement",
         numero: `REC-${String(p._id).slice(-6).toUpperCase()}`,
+        annule: p.annule,
         date: p.datePaiement,
         devise: p.deviseM,
         tiers: { label: "Reçu de", nom: p.recuDe || p.clientC },
@@ -181,6 +283,7 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
           totalHT: p.montantPaye,
           totalTVA: 0,
           totalTTC: p.montantPaye,
+          totalPaye: p.montantPaye,
           resteAPaye: p.resteAPaye,
         },
         montantEnLettres: p.montantPaye,
@@ -188,8 +291,10 @@ async function construireDonnees(type: string, id: string, user: CurrentUser): P
           p.banque && `Banque : ${p.banque}`,
           p.numCheque && `Chèque n° ${p.numCheque}`,
           p.numVirement && `Virement n° ${p.numVirement}`,
+          p.numTel && `Téléphone : ${p.numTel}`,
           p.payePar && `Encaissé par : ${p.payePar}`,
         ].filter(Boolean).join("\n") || undefined,
+        historique,
         signatureGauche: "Le Client",
         signatureDroite: "La Caisse",
       };

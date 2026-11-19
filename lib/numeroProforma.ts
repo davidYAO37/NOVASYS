@@ -38,7 +38,8 @@ export async function prochainNumeroProforma(currentUser: {
     String(d.getDate()).padStart(2, "0");
   const prefixe = `${aammjj}/NOVA/${code}-`;
 
-  const existants = await Commande.find({ numComm: new RegExp(`^${prefixe.replace(/\//g, "\\/")}`) })
+  const prefixeEchappe = prefixe.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const existants = await Commande.find({ numComm: new RegExp(`^${prefixeEchappe}`) })
     .select("numComm")
     .lean();
   let max = 0;

@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/auth";
 import { db } from "@/db/mongoConnect";
 import { Commande } from "@/models/commande";
 import { Achat } from "@/models/achat";
+import { DemandeAnnulation } from "@/models/demandeAnnulation";
 import { Entreprise } from "@/models/entreprise";
 import { getLicenceStatus } from "@/lib/licence";
 import { filtreSaisie } from "@/lib/portee";
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
       emissionCheque: 0,
       commandesRenvoyees: 0,
       bonsRenvoyes: 0,
+      demandesAnnulation: 0,
       licence,
     });
   }
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest) {
     emissionCheque,
     commandesRenvoyees,
     bonsRenvoyes,
+    demandesAnnulation,
   ] = await Promise.all([
     Commande.countDocuments({ serviceAchat: { $ne: true }, ...filtreUser }),
     Commande.countDocuments({
@@ -71,6 +74,10 @@ export async function GET(req: NextRequest) {
       renvoyeCompta: true,
       serviceComptable: { $ne: true },
     }),
+    // Demandes d'annulation de décaissement en attente : admin seul
+    user.type === "admin" || user.type === "adminsuper"
+      ? DemandeAnnulation.countDocuments({ statut: "en_attente" })
+      : Promise.resolve(0),
   ]);
 
   return NextResponse.json({
@@ -80,6 +87,7 @@ export async function GET(req: NextRequest) {
     emissionCheque,
     commandesRenvoyees,
     bonsRenvoyes,
+    demandesAnnulation,
     licence,
   });
 }

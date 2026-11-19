@@ -9,7 +9,7 @@ const TITRES: Record<PdfType, string> = {
   bl: "Bon de livraison",
   proforma: "Proforma",
   "bon-commande": "Bon de commande",
-  recu: "Reçu de paiement",
+  recu: "Reçu",
 };
 
 /**
@@ -46,11 +46,11 @@ export default function PdfPreviewModal({
   const src = `/api/pdf/${type}/${id}?avecEntete=${avecEntete}`;
 
   return (
-    <Modal show={show} onHide={onHide} size="xl" centered fullscreen="md-down">
+    <Modal show={show} onHide={onHide} centered fullscreen="md-down" dialogClassName="modal-apercu-pdf">
       <Modal.Header closeButton>
         <Modal.Title className="fs-5">Aperçu — {TITRES[type]}</Modal.Title>
       </Modal.Header>
-      <Modal.Body className="p-0 position-relative pdf-preview-body" style={{ height: "75vh" }}>
+      <Modal.Body className="p-0 position-relative pdf-preview-body">
         {loading && (
           <div className="position-absolute top-50 start-50 translate-middle">
             <Spinner animation="border" />

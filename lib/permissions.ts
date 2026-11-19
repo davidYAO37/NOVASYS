@@ -56,6 +56,31 @@ export const PERMISSION_ACTIONS = [
     modules: ["devis", "service_achat"],
   },
   {
+    code: "renvoi_devis",
+    label: "Renvoyer un devis reçu au commercial (non traité)",
+    modules: ["service_achat"],
+  },
+  {
+    code: "cloture_commande",
+    label: "Clôturer ou rouvrir un devis au service achat",
+    modules: ["service_achat"],
+  },
+  {
+    code: "renvoi_emission",
+    label: "Renvoyer une émission de chèque au service achat",
+    modules: ["emission_cheque"],
+  },
+  {
+    code: "decaissement",
+    label: "Décaisser une émission de chèque",
+    modules: ["emission_cheque", "caisse"],
+  },
+  {
+    code: "creation_article",
+    label: "Créer un article à la volée (devis, bon de commande)",
+    modules: ["devis", "service_achat", "stock"],
+  },
+  {
     code: "annulation_encaissement",
     label: "Annuler un encaissement",
     modules: ["caisse"],
@@ -103,7 +128,7 @@ export const ROLE_SERVICES: Record<string, ServiceCode[]> = {
   commercial: ["accueil", "clients", "fournisseurs", "devis"],
   achat: ["accueil", "fournisseurs", "devis", "service_achat", "emission_cheque", "factures"],
   comptable: ["accueil", "emission_cheque", "caisse", "factures"],
-  caisse: ["accueil", "caisse", "clients", "factures"],
+  caisse: ["accueil", "caisse", "clients", "factures", "emission_cheque"],
   stock: ["accueil", "stock"],
 };
 
@@ -111,7 +136,11 @@ export const ROLE_SERVICES: Record<string, ServiceCode[]> = {
 export const ROLE_ACTIONS: Record<string, string[]> = {
   admin: ["*"],
   adminsuper: ["*"],
-  comptable: ["export_comptable"],
+  commercial: ["creation_article"],
+  achat: ["creation_article", "renvoi_devis", "cloture_commande"],
+  comptable: ["export_comptable", "renvoi_emission", "decaissement", "annulation_encaissement"],
+  caisse: ["decaissement", "annulation_encaissement"],
+  stock: ["parametrage_stock", "creation_article"],
 };
 
 /** Libellés d'affichage des profils (valeurs stockées en base = clés). */
@@ -175,6 +204,35 @@ export function getUserPermissions(user: UserLike): ResolvedPermissions {
   };
 }
 
+/**
+ * Valide/normalise le rôle et les permissions envoyés pour un profil
+ * (POST/PUT `/api/profils`). Rôle inconnu → "commercial" ;
+ * services/actions filtrés contre les catalogues.
+ */
+export function lireDroitsProfil(data: {
+  type?: string;
+  customized?: boolean;
+  services?: string[];
+  actions?: string[];
+}) {
+  // adminsuper n'est jamais attribuable via un profil (réservé au compte éditeur)
+  const type =
+    data.type && data.type !== "adminsuper" && ROLE_LABELS[data.type]
+      ? data.type
+      : "commercial";
+  const customized = !!data.customized;
+  return {
+    type,
+    customized,
+    services: customized
+      ? (data.services || []).filter((s) => ALL_SERVICE_CODES.includes(s as ServiceCode))
+      : [],
+    actions: customized
+      ? (data.actions || []).filter((a) => ALL_ACTION_CODES.includes(a))
+      : [],
+  };
+}
+
 /** L'utilisateur possède-t-il l'action demandée ? */
 export function hasActionPermission(user: UserLike, action: string): boolean {
   const perms = getUserPermissions(user);
@@ -184,11 +242,16 @@ export function hasActionPermission(user: UserLike, action: string): boolean {
 /**
  * Repli : un utilisateur personnalisé dont les services couvrent tous ceux
  * d'un rôle autorisé est considéré comme ayant ce rôle.
+ * Les rôles admin/adminsuper ne peuvent JAMAIS être imités : leurs
+ * services couvrant tout le catalogue, un utilisateur à « tous services »
+ * passerait sinon pour admin sur les routes sans action requise.
  */
 export function matchesAllowedRoles(user: UserLike, allowedRoles?: string[]): boolean {
   if (!allowedRoles?.length || !user?.permissions?.customized) return false;
   const userServices = new Set(user.permissions.services || []);
   return allowedRoles.some((role) =>
+    role !== "admin" &&
+    role !== "adminsuper" &&
     (ROLE_SERVICES[role] || []).every((s) => userServices.has(s))
   );
 }

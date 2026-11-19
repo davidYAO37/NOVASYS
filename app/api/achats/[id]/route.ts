@@ -5,6 +5,8 @@ import { Achat } from "@/models/achat";
 import { LigneAchat } from "@/models/ligneAchat";
 import { LigneCde } from "@/models/ligneCde";
 import { quantitesCommandees, recalculerStatutCommande } from "@/lib/commandeAchat";
+import { calculerTotauxAchat } from "@/lib/calculAchat";
+import { Transitaire } from "@/models/transitaire";
 
 const ROLES = ["admin", "achat", "comptable"];
 
@@ -44,7 +46,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
   const data = await req.json();
   const { lignes, ...entete } = data;
-  delete entete.numAchat;
+  // Suivi comptable et totaux : écrits uniquement par le circuit
+  // (transfert compta, émission, décaissement) et le recalcul
+  for (const k of [
+    "numAchat", "saisiePar", "statutAchat", "serviceComptable", "comptaEnvoieLe",
+    "comptaEnvoiePar", "chequeEdite", "paiementFournisseurId", "renvoyeCompta",
+    "motifRenvoi", "renvoyeLe", "renvoyePar", "totalPaye", "sousTotalHT",
+    "montantDouane", "totalHT", "totalTVA", "totalTTC", "resteAPaye",
+  ]) {
+    delete entete[k];
+  }
 
   let lignesRecalc: any[] | null = null;
   if (Array.isArray(lignes) && achat.commandeId) {
@@ -79,16 +90,44 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         }
       }
     }
-    const taux = Number(data.taux ?? achat.taux) || 0;
+    const tauxLignes = Number(data.taux ?? achat.taux) || 0;
     lignesRecalc = lignes.map((l: any) => {
       const prixTHT = Number(l.quantite) * (Number(l.prixAchat) || 0);
-      const tvaEntree = (prixTHT * taux) / 100;
+      const tvaEntree = (prixTHT * tauxLignes) / 100;
       return { ...l, prixTHT, tvaEntree, montantTTCE: prixTHT + tvaEntree };
     });
-    entete.totalHT = lignesRecalc.reduce((s, l) => s + l.prixTHT, 0);
-    entete.totalTVA = lignesRecalc.reduce((s, l) => s + l.tvaEntree, 0);
-    entete.totalTTC = entete.totalHT + entete.totalTVA;
-    entete.resteAPaye = entete.totalTTC - (achat.totalPaye || 0);
+  }
+
+  // Transitaire : absent du body → inchangé ; vide → retiré ; sinon vérifié.
+  if ("transitaireId" in data) {
+    if (!data.transitaireId) {
+      entete.transitaireId = undefined;
+      entete.transitaire = undefined;
+    } else {
+      const tr = await Transitaire.findById(data.transitaireId).lean();
+      if (!tr) {
+        return NextResponse.json({ message: "Transitaire introuvable" }, { status: 404 });
+      }
+      entete.transitaireId = tr._id;
+      entete.transitaire = tr.nom;
+    }
+  }
+  delete entete.transitaire; // le nom stocké ne vient que de la fiche Transitaire
+  if (!("transitaireId" in data)) delete entete.transitaireId;
+
+  // Recalcul des totaux si les lignes ou un extra (transport, autre, douane, TVA) changent.
+  const extrasChanges = ["fraisTransport", "autreMontant", "tauxDouane", "taux"].some((k) => k in data);
+  if (Array.isArray(lignes) || extrasChanges) {
+    const taux = Number(data.taux ?? achat.taux) || 0;
+    const lignesBase = lignesRecalc ?? (await LigneAchat.find({ achatId: achat._id }).lean());
+    const t = calculerTotauxAchat(lignesBase, {
+      fraisTransport: data.fraisTransport ?? achat.fraisTransport,
+      autreMontant: data.autreMontant ?? achat.autreMontant,
+      tauxDouane: data.tauxDouane ?? achat.tauxDouane,
+      taux,
+    });
+    Object.assign(entete, t);
+    entete.resteAPaye = t.totalTTC - (achat.totalPaye || 0);
   }
 
   Object.assign(achat, entete);

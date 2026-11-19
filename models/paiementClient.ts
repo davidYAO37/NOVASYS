@@ -24,11 +24,13 @@ export interface IPaiementClient extends Document {
   banque?: string;
   numCheque?: string;
   numVirement?: string;
+  numTel?: string;
   numComm?: string;
   objetCommande?: string;
   deviseM?: string;
   numeroFactBL?: string;
   factureId?: Types.ObjectId;
+  annule?: boolean;
 }
 
 const PaiementClientSchema = new Schema<IPaiementClient>(
@@ -48,11 +50,13 @@ const PaiementClientSchema = new Schema<IPaiementClient>(
     banque: { type: String },
     numCheque: { type: String },
     numVirement: { type: String },
+    numTel: { type: String },
     numComm: { type: String },
     objetCommande: { type: String },
     deviseM: { type: String, default: "FCFA" },
     numeroFactBL: { type: String },
     factureId: { type: Schema.Types.ObjectId, ref: "FactureClient" },
+    annule: { type: Boolean, default: false },
   },
   { timestamps: true, collection: "paiementsclients" }
 );

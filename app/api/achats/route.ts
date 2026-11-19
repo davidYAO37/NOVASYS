@@ -7,6 +7,8 @@ import { Commande } from "@/models/commande";
 import { LigneCde } from "@/models/ligneCde";
 import { nextNumero } from "@/lib/numero";
 import { quantitesCommandees, recalculerStatutCommande } from "@/lib/commandeAchat";
+import { calculerTotauxAchat } from "@/lib/calculAchat";
+import { Transitaire } from "@/models/transitaire";
 
 const ROLES = ["admin", "achat", "comptable"];
 
@@ -62,6 +64,14 @@ export async function POST(req: NextRequest) {
       { message: "Le fournisseur est obligatoire" },
       { status: 400 }
     );
+  }
+
+  let transitaireDoc = null;
+  if (data.transitaireId) {
+    transitaireDoc = await Transitaire.findById(data.transitaireId).lean();
+    if (!transitaireDoc) {
+      return NextResponse.json({ message: "Transitaire introuvable" }, { status: 404 });
+    }
   }
 
   let commande = null;
@@ -127,9 +137,13 @@ export async function POST(req: NextRequest) {
     const tvaEntree = (prixTHT * taux) / 100;
     return { ...l, prixTHT, tvaEntree, montantTTCE: prixTHT + tvaEntree };
   });
-  const totalHT = lignesRecalc.reduce((s: number, l: any) => s + l.prixTHT, 0);
-  const totalTVA = lignesRecalc.reduce((s: number, l: any) => s + l.tvaEntree, 0);
-  const totalTTC = totalHT + totalTVA;
+  const { sousTotalHT, fraisTransport, autreMontant, tauxDouane, montantDouane, totalHT, totalTVA, totalTTC } =
+    calculerTotauxAchat(lignes, {
+      fraisTransport: data.fraisTransport,
+      autreMontant: data.autreMontant,
+      tauxDouane: data.tauxDouane,
+      taux,
+    });
 
   const saisiePar = `${user.nom} ${user.prenom}`.trim();
   const numAchat = data.numAchat || (await nextNumero(Achat, "numAchat", "BC"));
@@ -137,6 +151,13 @@ export async function POST(req: NextRequest) {
   const achat = await Achat.create({
     numAchat,
     dateAchat: data.dateAchat || new Date(),
+    transitaireId: transitaireDoc?._id,
+    transitaire: transitaireDoc?.nom,
+    sousTotalHT,
+    fraisTransport,
+    autreMontant,
+    tauxDouane,
+    montantDouane,
     totalHT,
     totalTVA,
     totalTTC,

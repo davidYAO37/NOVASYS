@@ -4,6 +4,7 @@ import { db } from "@/db/mongoConnect";
 import { Commande } from "@/models/commande";
 import { achatsActifs } from "@/lib/commandeAchat";
 import { peutVoirSaisie } from "@/lib/portee";
+import { hasActionPermission } from "@/lib/permissions";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -41,12 +42,18 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 /**
  * Annuler le transfert d'une commande
  * (action réservée — permission "annulation_transfert").
+ * Le commercial peut aussi reprendre son propre devis tant que le service
+ * achat ne l'a pas traité (aucun bon de commande).
  */
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  const { user, error } = await requireAuth(req, ["admin"], {
-    actions: ["annulation_transfert"],
-  });
+  const { user, error } = await requireAuth(req);
   if (error) return error;
+  const autorise =
+    ["admin", "adminsuper", "commercial"].includes(user.type) ||
+    hasActionPermission(user, "annulation_transfert");
+  if (!autorise) {
+    return NextResponse.json({ message: "Accès interdit" }, { status: 403 });
+  }
   await db();
 
   const { id } = await ctx.params;

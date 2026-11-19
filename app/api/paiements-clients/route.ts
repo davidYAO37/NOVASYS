@@ -49,11 +49,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Montant invalide" }, { status: 400 });
   }
 
+  // Facture cible : doit exister, correspondre au client, et le montant ne
+  // peut pas dépasser son reste à payer
+  let facture = null;
+  if (data.factureId) {
+    facture = await FactureClient.findById(data.factureId);
+    if (!facture) {
+      return NextResponse.json({ message: "Facture introuvable" }, { status: 404 });
+    }
+    if (data.clientId && facture.clientId && String(facture.clientId) !== String(data.clientId)) {
+      return NextResponse.json(
+        { message: "Cette facture n'appartient pas au client sélectionné" },
+        { status: 409 }
+      );
+    }
+    if (montant - (facture.resteAPaye || 0) > 1e-9) {
+      return NextResponse.json(
+        { message: `Le montant dépasse le reste à payer de la facture (${facture.resteAPaye} FCFA)` },
+        { status: 409 }
+      );
+    }
+  }
+
   const saisiPar = `${user.nom} ${user.prenom}`.trim();
+  const mode = data.modeReglement;
+  // Ne conserver que les références du mode choisi
+  const banque = ["Chèque", "Virement", "Carte bancaire"].includes(mode) ? data.banque : "";
+  const numCheque = mode === "Chèque" ? data.numCheque : "";
+  const numVirement = mode === "Virement" ? data.numVirement : "";
+  const numTel = mode === "Mobile Money" ? data.numTel : "";
+
   const paiement = await PaiementClient.create({
     datePaiement: data.datePaiement || new Date(),
     heureAjout: new Date().toLocaleTimeString("fr-FR"),
-    payePar: data.payePar || saisiPar,
+    payePar: saisiPar,
     recuDe: data.recuDe || data.clientC,
     montantPaye: montant,
     clientId: data.clientId || undefined,
@@ -63,9 +92,10 @@ export async function POST(req: NextRequest) {
     totalTTC: data.totalTTC,
     resteAPaye: data.resteAPaye,
     clientC: data.clientC,
-    banque: data.banque,
-    numCheque: data.numCheque,
-    numVirement: data.numVirement,
+    banque,
+    numCheque,
+    numVirement,
+    numTel,
     numComm: data.numComm,
     objetCommande: data.objetCommande,
     deviseM: data.deviseM || "FCFA",
@@ -74,14 +104,11 @@ export async function POST(req: NextRequest) {
   });
 
   // Mettre à jour la facture
-  if (data.factureId) {
-    const facture = await FactureClient.findById(data.factureId);
-    if (facture) {
-      facture.totalPaye = (facture.totalPaye || 0) + montant;
-      facture.resteAPaye = (facture.totalTTC || 0) - facture.totalPaye;
-      facture.statutC = (facture.resteAPaye || 0) <= 0 ? "soldee" : "partielle";
-      await facture.save();
-    }
+  if (facture) {
+    facture.totalPaye = (facture.totalPaye || 0) + montant;
+    facture.resteAPaye = (facture.totalTTC || 0) - facture.totalPaye;
+    facture.statutC = (facture.resteAPaye || 0) <= 0 ? "soldee" : "partielle";
+    await facture.save();
   }
 
   // Mettre à jour le solde du client

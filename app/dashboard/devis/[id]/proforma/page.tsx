@@ -41,7 +41,7 @@ export default function ProformaPage() {
             boitePostale: commande.boitePostale,
           }}
           objet={commande.objetCommande}
-          lignes={commande.lignes || []}
+          lignes={(commande.lignes || []).map((l: any) => ({ ...l, prixUnitaire: l.prixUnitaireHT ?? l.prixUnitaire }))}
           totalHT={commande.totalHT}
           remise={commande.remise}
           mainDoeuvre={commande.mainDoeuvre}

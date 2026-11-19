@@ -5,7 +5,7 @@ import { ReglementFournisseur } from "@/models/reglementFournisseur";
 import { Achat } from "@/models/achat";
 import { nextNumero } from "@/lib/numero";
 
-const ROLES = ["admin", "achat", "comptable"];
+const ROLES = ["admin", "achat", "comptable", "caisse"];
 
 /** Liste des émissions de chèque de la période (FEN_EMISSION_DE_CHEQUE). */
 export async function GET(req: NextRequest) {
@@ -74,6 +74,13 @@ export async function POST(req: NextRequest) {
   const montantTotal = achats.reduce((s, a) => s + (a.totalTTC || 0), 0);
   const numEmission = await nextNumero(ReglementFournisseur, "numEmission", "EMI");
 
+  const mode = data.modeReglement || "Chèque";
+  // Ne conserver que les références du mode choisi
+  const banque = ["Chèque", "Virement", "Carte bancaire"].includes(mode) ? data.banque : "";
+  const numCheque = mode === "Chèque" ? data.numCheque : "";
+  const numVirement = mode === "Virement" ? data.numVirement : "";
+  const numTel = mode === "Mobile Money" ? data.numTel : "";
+
   const emission = await ReglementFournisseur.create({
     numEmission,
     datePaiement: data.datePaiement || new Date(),
@@ -83,9 +90,11 @@ export async function POST(req: NextRequest) {
     montantTotal,
     fournisseurId: data.fournisseurId,
     fournisseur: data.fournisseur,
-    modeReglement: data.modeReglement || "Chèque",
-    banque: data.banque,
-    numCheque: data.numCheque,
+    modeReglement: mode,
+    banque,
+    numCheque,
+    numVirement,
+    numTel,
     delaisDeReglement: data.delaisDeReglement,
     alOrdreDe: data.alOrdreDe,
     totalPaye: 0,

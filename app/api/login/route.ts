@@ -9,12 +9,43 @@ import { getUserPermissions } from "@/lib/permissions";
 const MAX_ATTEMPTS = 4;
 const LOCK_DURATION_MINUTES = 30;
 
+// Limite simple par IP : 30 tentatives / minute (complète le verrouillage
+// par compte, qui seul resterait contournable en visant plusieurs comptes)
+const tentativesParIp = new Map<string, { count: number; reset: number }>();
+const IP_LIMITE = 30;
+const IP_FENETRE_MS = 60_000;
+
+function ipBloquee(ip: string): boolean {
+  const now = Date.now();
+  const e = tentativesParIp.get(ip);
+  if (!e || e.reset < now) {
+    tentativesParIp.set(ip, { count: 1, reset: now + IP_FENETRE_MS });
+    if (tentativesParIp.size > 10_000) tentativesParIp.clear();
+    return false;
+  }
+  e.count++;
+  return e.count > IP_LIMITE;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    await db();
-    const { email, password } = await req.json();
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "unknown";
+    if (ipBloquee(clientIp)) {
+      return NextResponse.json(
+        { message: "Trop de tentatives. Réessayez dans une minute." },
+        { status: 429 }
+      );
+    }
 
-    if (!email || !password) {
+    await db();
+    const body = await req.json();
+    const email = typeof body?.email === "string" ? body.email : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+
+    if (!email || !password || email.length > 200 || password.length > 500) {
       return NextResponse.json(
         { message: "Identifiant et mot de passe requis" },
         { status: 400 }
@@ -23,10 +54,6 @@ export async function POST(req: NextRequest) {
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
 
-    const clientIp =
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
     const userAgent = req.headers.get("user-agent") || "unknown";
 
     const logConnexion = async (
@@ -115,6 +142,7 @@ export async function POST(req: NextRequest) {
       userId: user._id.toString(),
       email: user.email,
       type: user.type || "commercial",
+      tv: user.tokenVersion || 0,
     });
 
     const response = NextResponse.json({

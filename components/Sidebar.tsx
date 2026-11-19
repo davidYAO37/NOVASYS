@@ -19,6 +19,7 @@ interface Notifs {
   emissionCheque: number;
   commandesRenvoyees: number;
   bonsRenvoyes: number;
+  demandesAnnulation: number;
   licence: { niveau: string; texte: string } | null;
 }
 
@@ -39,7 +40,7 @@ const MENU: { title?: string; items: MenuItem[] }[] = [
     items: [
       { label: "Clients", href: "/dashboard/clients", icon: "bi-people", service: "clients" },
       { label: "Fournisseurs", href: "/dashboard/fournisseurs", icon: "bi-truck", service: "fournisseurs" },
-      { label: "Gestion des commandes", href: "/dashboard/devis", icon: "bi-file-earmark-text", service: "devis" },
+      { label: "Gestion des devis", href: "/dashboard/devis", icon: "bi-file-earmark-text", service: "devis" },
       { label: "Proformas en attente", href: "/dashboard/proformas-attente", icon: "bi-hourglass-split", service: "devis" },
     ],
   },
@@ -49,6 +50,7 @@ const MENU: { title?: string; items: MenuItem[] }[] = [
       { label: "Service achat", href: "/dashboard/service-achat", icon: "bi-cart", service: "service_achat" },
       { label: "Bons de commande", href: "/dashboard/achats", icon: "bi-bag-check", service: "service_achat" },
       { label: "Émission de chèque", href: "/dashboard/emission-cheque", icon: "bi-credit-card-2-front", service: "emission_cheque" },
+      { label: "Demandes d'annulation", href: "/dashboard/demandes-annulation", icon: "bi-arrow-counterclockwise", service: "emission_cheque" },
     ],
   },
   {
@@ -166,6 +168,10 @@ export default function Sidebar() {
       case "/dashboard/emission-cheque":
         return notifs.emissionCheque > 0
           ? { bg: "danger", texte: String(notifs.emissionCheque), title: `${notifs.emissionCheque} chèques à émettre` }
+          : null;
+      case "/dashboard/demandes-annulation":
+        return notifs.demandesAnnulation > 0
+          ? { bg: "danger", texte: String(notifs.demandesAnnulation), title: `${notifs.demandesAnnulation} demande(s) d'annulation en attente` }
           : null;
       case "/dashboard/licence":
         return notifs.licence

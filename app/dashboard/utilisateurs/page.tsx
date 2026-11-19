@@ -28,6 +28,7 @@ const SERVICE_LABELS: Record<string, string> = {
  */
 export default function UtilisateursPage() {
   const [users, setUsers] = useState<any[]>([]);
+  const [profils, setProfils] = useState<any[]>([]);
   const [showFiche, setShowFiche] = useState(false);
   const [fiche, setFiche] = useState<any>(VIDE);
   const [editId, setEditId] = useState<string | null>(null);
@@ -42,13 +43,14 @@ export default function UtilisateursPage() {
     axios.get("/api/utilisateurs").then((r) => setUsers(r.data)).catch((e) => {
       setMessage(e.response?.data?.message || "Accès refusé");
     });
+    axios.get("/api/profils").then((r) => setProfils(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => { charger(); }, [charger]);
 
   const ouvrirFiche = (u?: any) => {
     setEditId(u?._id || null);
-    setFiche(u ? { nom: u.nom || "", prenom: u.prenom || "", email: u.email, password: "", type: u.type || "commercial", codeProforma: u.codeProforma || "" } : VIDE);
+    setFiche(u ? { nom: u.nom || "", prenom: u.prenom || "", email: u.email, password: "", type: u.type || "commercial", codeProforma: u.codeProforma || "", profilId: u.profilId || "" } : VIDE);
     setShowFiche(true);
   };
 
@@ -56,7 +58,7 @@ export default function UtilisateursPage() {
     setMessage("");
     try {
       if (editId) {
-        const payload: any = { nom: fiche.nom, prenom: fiche.prenom, type: fiche.type, codeProforma: fiche.codeProforma };
+        const payload: any = { nom: fiche.nom, prenom: fiche.prenom, type: fiche.type, codeProforma: fiche.codeProforma, profilId: fiche.profilId || "" };
         if (fiche.password) payload.password = fiche.password;
         await axios.put(`/api/utilisateurs/${editId}`, payload);
       } else {
@@ -185,12 +187,31 @@ export default function UtilisateursPage() {
             <Col md={6}><Form.Label>{editId ? "Nouveau mot de passe (vide = inchangé)" : "Mot de passe *"}</Form.Label>
               <Form.Control type="password" value={fiche.password}
                 onChange={(e) => setFiche({ ...fiche, password: e.target.value })} /></Col>
-            <Col md={6}><Form.Label>Profil</Form.Label>
-              <Form.Select value={fiche.type} onChange={(e) => setFiche({ ...fiche, type: e.target.value })}>
+            <Col md={6}><Form.Label>Rôle</Form.Label>
+              <Form.Select value={fiche.type} disabled={!!fiche.profilId}
+                onChange={(e) => setFiche({ ...fiche, type: e.target.value })}>
                 {Object.entries(ROLE_LABELS).filter(([k]) => k !== "adminsuper").map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}
-              </Form.Select></Col>
+              </Form.Select>
+              {fiche.profilId && (
+                <Form.Text className="text-muted">Rôle défini par le profil choisi.</Form.Text>
+              )}</Col>
+            <Col md={6}><Form.Label>Profil (droits prédéfinis)</Form.Label>
+              <Form.Select value={fiche.profilId || ""}
+                onChange={(e) => setFiche({ ...fiche, profilId: e.target.value })}>
+                <option value="">— Aucun (rôle choisi manuellement) —</option>
+                {profils.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.profil} — {ROLE_LABELS[p.type] || p.type}
+                  </option>
+                ))}
+              </Form.Select>
+              {fiche.profilId && (
+                <Form.Text className="text-muted">
+                  Le profil impose son rôle et ses permissions à cet utilisateur.
+                </Form.Text>
+              )}</Col>
             <Col md={6}><Form.Label>Code proforma (ex. TECH, COM, COMPT)</Form.Label>
               <Form.Control value={fiche.codeProforma}
                 onChange={(e) => setFiche({ ...fiche, codeProforma: e.target.value.toUpperCase() })} /></Col>

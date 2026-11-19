@@ -11,11 +11,20 @@ const CHAMPS_MODIFIABLES = [
 
 /** Fiche entreprise (FEN_entreprise / FEN_Fiche_Entreprise). */
 export async function GET(req: NextRequest) {
-  const { error } = await requireAuth(req);
+  const { user, error } = await requireAuth(req);
   if (error) return error;
   await db();
   const entreprise = await Entreprise.findOne().select("-licenceKey").lean();
-  return NextResponse.json(entreprise || {});
+  if (!entreprise) return NextResponse.json({});
+  // Champs licence réservés à l'admin (statut accessible via /api/licence/status)
+  const estAdmin = user!.type === "admin" || user!.type === "adminsuper";
+  if (!estAdmin) {
+    const { licenceType, licenceStatus, licenceStartDate, licenceEndDate,
+      maintenanceAccepted, maintenanceDueDate, gracePeriodDays, modules, ...pub } =
+      entreprise as any;
+    return NextResponse.json(pub);
+  }
+  return NextResponse.json(entreprise);
 }
 
 export async function PUT(req: NextRequest) {

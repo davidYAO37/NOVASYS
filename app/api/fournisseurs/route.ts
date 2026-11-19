@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { db } from "@/db/mongoConnect";
 import { Fournisseur } from "@/models/fournisseur";
-import { filtreCreateur } from "@/lib/portee";
+import { estCommercial, estMien, idsFournisseursTravailles } from "@/lib/portee";
 
 const ROLES = ["admin", "commercial", "achat", "comptable"];
 
@@ -23,8 +23,14 @@ export async function GET(req: NextRequest) {
       }
     : {};
 
-  const fournisseurs = await Fournisseur.find({ ...filtre, ...filtreCreateur(user) }).sort({ nomPren: 1 }).lean();
-  return NextResponse.json(fournisseurs);
+  // ?tous=1 : sélecteurs (fiche devis) — un commercial travaille avec tous les fournisseurs
+  // Tout le monde voit toutes les fiches ; le commercial reçoit en plus
+  // estMien pour le filtre « Mes fournisseurs » (créés ou déjà travaillées).
+  const fournisseurs = await Fournisseur.find(filtre).sort({ nomPren: 1 }).lean();
+  const ids = estCommercial(user) ? await idsFournisseursTravailles(user) : null;
+  return NextResponse.json(
+    fournisseurs.map((f) => ({ ...f, estMien: ids ? estMien(user, f, ids) : true }))
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -35,6 +41,9 @@ export async function POST(req: NextRequest) {
   const data = await req.json();
   if (!data.nomPren?.trim()) {
     return NextResponse.json({ message: "Le nom du fournisseur est requis" }, { status: 400 });
+  }
+  for (const k of ["compteFournisseur", "montantPaye", "resteAPaye", "modifiePar"]) {
+    delete data[k];
   }
 
   const fournisseur = await Fournisseur.create({

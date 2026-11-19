@@ -20,6 +20,7 @@ export interface IUser extends Document {
     actions?: string[];
     customized?: boolean;
   };
+  tokenVersion?: number;
   failedAttempts?: number;
   remainingAttempts?: number;
   isLocked?: boolean;
@@ -45,6 +46,7 @@ const UserSchema = new Schema<IUser>(
       actions: { type: [String], default: undefined },
       customized: { type: Boolean, default: false },
     },
+    tokenVersion: { type: Number, default: 0 },
     failedAttempts: { type: Number, default: 0 },
     remainingAttempts: { type: Number, default: 4 },
     isLocked: { type: Boolean, default: false },

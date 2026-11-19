@@ -20,12 +20,15 @@ export interface IPaiementFournisseur extends Document {
   deviseM?: string;
   banque?: string;
   numCheque?: string;
+  numVirement?: string;
+  numTel?: string;
   objetAchat?: string;
   reglementFournisseurId?: Types.ObjectId;
   fournisseurId?: Types.ObjectId;
   fournisseur?: string;
   alOrdreDe?: string;
   delaisDeReglement?: string;
+  annule?: boolean;
 }
 
 const PaiementFournisseurSchema = new Schema<IPaiementFournisseur>(
@@ -41,12 +44,15 @@ const PaiementFournisseurSchema = new Schema<IPaiementFournisseur>(
     deviseM: { type: String, default: "FCFA" },
     banque: { type: String },
     numCheque: { type: String },
+    numVirement: { type: String },
+    numTel: { type: String },
     objetAchat: { type: String },
     reglementFournisseurId: { type: Schema.Types.ObjectId, ref: "ReglementFournisseur" },
     fournisseurId: { type: Schema.Types.ObjectId, ref: "Fournisseur" },
     fournisseur: { type: String },
     alOrdreDe: { type: String },
     delaisDeReglement: { type: String },
+    annule: { type: Boolean, default: false },
   },
   { timestamps: true, collection: "paiementsfournisseurs" }
 );

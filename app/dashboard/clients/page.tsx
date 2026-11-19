@@ -20,6 +20,8 @@ export default function ClientsPage() {
   const [showDetail, setShowDetail] = useState(false);
   const [message, setMessage] = useState("");
   const [apercu, setApercu] = useState<{ type: "facture" | "bl"; id: string } | null>(null);
+  const [me, setMe] = useState<any>(null);
+  const [miens, setMiens] = useState(false);
 
   const charger = useCallback(() => {
     axios.get("/api/clients", { params: { q: recherche || undefined } })
@@ -27,7 +29,13 @@ export default function ClientsPage() {
       .catch(() => {});
   }, [recherche]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    charger();
+    axios.get("/api/me").then((r) => setMe(r.data?.user)).catch(() => {});
+  }, [charger]);
+
+  const estCommercial = me?.type === "commercial";
+  const visibles = estCommercial && miens ? clients.filter((c) => c.estMien) : clients;
 
   const ouvrirFiche = (c?: any) => {
     setFicheInit(c || null);
@@ -62,12 +70,24 @@ export default function ClientsPage() {
       {message && <div className="alert alert-danger">{message}</div>}
 
       <Card className="shadow-sm mb-3">
-        <Card.Body>
+        <Card.Body className="d-flex gap-2 flex-wrap">
           <Form.Control
+            className="flex-grow-1"
             placeholder="Rechercher (nom, raison sociale, téléphone)..."
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
           />
+          {estCommercial && (
+            <Form.Select
+              aria-label="Afficher"
+              style={{ width: "auto" }}
+              value={miens ? "miens" : "tous"}
+              onChange={(e) => setMiens(e.target.value === "miens")}
+            >
+              <option value="tous">Tous les clients</option>
+              <option value="miens">Mes clients (créés ou déjà travaillés)</option>
+            </Form.Select>
+          )}
         </Card.Body>
       </Card>
 
@@ -85,10 +105,13 @@ export default function ClientsPage() {
             </tr>
           </thead>
           <tbody>
-            {clients.map((c) => (
+            {visibles.map((c) => (
               <tr key={c._id}>
                 <td className="fw-semibold" style={{ cursor: "pointer" }} onClick={() => voirDetail(c._id)}>
                   {c.nomPren}
+                  {estCommercial && c.estMien && (
+                    <Badge bg="success" className="ms-2">Mon client</Badge>
+                  )}
                 </td>
                 <td>{c.raisonSociale}</td>
                 <td>{c.telephone}</td>
@@ -100,19 +123,31 @@ export default function ClientsPage() {
                     : <Badge bg="success">0</Badge>}
                 </td>
                 <td>
-                  <Button size="sm" variant="outline-primary" className="me-1" title="Voir factures" onClick={() => voirDetail(c._id)}>
-                    <i className="bi bi-eye"></i>
-                  </Button>
-                  <Button size="sm" variant="outline-secondary" className="me-1" title="Modifier" onClick={() => ouvrirFiche(c)}>
-                    <i className="bi bi-pencil"></i>
-                  </Button>
+                  {(() => {
+                    const interdit = estCommercial && !c.estMien && c.creerPar;
+                    const titreInterdit = "Client d'un autre commercial — consultation non autorisée";
+                    return (
+                      <>
+                        <Button size="sm" variant="outline-primary" className="me-1"
+                          title={interdit ? titreInterdit : "Voir factures"}
+                          disabled={interdit} onClick={() => voirDetail(c._id)}>
+                          <i className="bi bi-eye"></i>
+                        </Button>
+                        <Button size="sm" variant="outline-secondary" className="me-1"
+                          title={interdit ? titreInterdit : "Modifier"}
+                          disabled={interdit} onClick={() => ouvrirFiche(c)}>
+                          <i className="bi bi-pencil"></i>
+                        </Button>
+                      </>
+                    );
+                  })()}
                   <Button size="sm" variant="outline-danger" title="Supprimer" onClick={() => supprimer(c._id)}>
                     <i className="bi bi-trash"></i>
                   </Button>
                 </td>
               </tr>
             ))}
-            {!clients.length && (
+            {!visibles.length && (
               <tr><td colSpan={7} className="text-center text-muted py-4">Aucun client</td></tr>
             )}
           </tbody>

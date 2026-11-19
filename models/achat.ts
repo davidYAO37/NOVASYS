@@ -13,6 +13,13 @@ import mongoose, { Schema, Document, Model, Types } from "mongoose";
 export interface IAchat extends Document {
   numAchat: string;
   dateAchat: Date;
+  transitaireId?: Types.ObjectId;
+  transitaire?: string;
+  sousTotalHT?: number;
+  fraisTransport?: number;
+  autreMontant?: number;
+  tauxDouane?: number;
+  montantDouane?: number;
   totalHT: number;
   totalTVA?: number;
   totalTTC: number;
@@ -50,6 +57,13 @@ const AchatSchema = new Schema<IAchat>(
   {
     numAchat: { type: String, required: true, unique: true },
     dateAchat: { type: Date, required: true, default: Date.now },
+    transitaireId: { type: Schema.Types.ObjectId, ref: "Transitaire" },
+    transitaire: { type: String },
+    sousTotalHT: { type: Number, default: 0 },
+    fraisTransport: { type: Number, default: 0 },
+    autreMontant: { type: Number, default: 0 },
+    tauxDouane: { type: Number, default: 0 },
+    montantDouane: { type: Number, default: 0 },
     totalHT: { type: Number, default: 0 },
     totalTVA: { type: Number, default: 0 },
     totalTTC: { type: Number, default: 0 },

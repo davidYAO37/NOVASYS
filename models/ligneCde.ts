@@ -12,6 +12,7 @@ export interface ILigneCde extends Document {
   numCommande?: string;
   reference?: string;
   articleM?: string;
+  articleId?: Types.ObjectId;
   quantite: number;
   prixUnitaire: number;
   prixUnitaireHT?: number;
@@ -37,6 +38,7 @@ const LigneCdeSchema = new Schema<ILigneCde>(
     numCommande: { type: String },
     reference: { type: String },
     articleM: { type: String },
+    articleId: { type: Schema.Types.ObjectId, ref: "Article" },
     quantite: { type: Number, default: 0 },
     prixUnitaire: { type: Number, default: 0 },
     prixUnitaireHT: { type: Number, default: 0 },

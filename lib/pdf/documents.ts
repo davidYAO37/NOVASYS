@@ -70,6 +70,22 @@ export interface TotauxPdf {
   totalTTC?: number;
   totalPaye?: number;
   resteAPaye?: number;
+  /** Lignes de détail avant le Total HT (ex. transport, douane d'un bon d'achat) */
+  detail?: { label: string; montant: number }[];
+  /** Libellé TVA personnalisé (ex. « TVA (18 %) ») */
+  labelTVA?: string;
+}
+
+export interface ReglementPdf {
+  numero?: string;
+  date?: Date | string;
+  libelle?: string;
+  reference?: string;
+  montant?: number;
+  /** Règlement annulé */
+  annule?: boolean;
+  /** Ligne du reçu en cours d'impression (mise en surbrillance) */
+  courant?: boolean;
 }
 
 export interface DonneesDocumentPdf {
@@ -87,6 +103,10 @@ export interface DonneesDocumentPdf {
   montantEnLettres?: number;
   /** Ligne libre sous le titre (ex. mode de règlement, banque, n° chèque) */
   complement?: string;
+  /** Historique des règlements du document (reçus de paiement) */
+  historique?: ReglementPdf[];
+  /** Filigrane « ANNULÉ » sur toutes les pages (document annulé) */
+  annule?: boolean;
   signatureDroite?: string;
   signatureGauche?: string;
 }
@@ -321,7 +341,7 @@ export async function genererDocumentPdf(
     let alt = false;
     for (let i = 0; i < data.lignes.length; i++) {
       const l = data.lignes[i];
-      const desc = l.articleM || l.description || "";
+      const desc = [l.articleM, l.description].filter(Boolean).join("\n");
       const h = Math.max(18, doc.font("Helvetica").fontSize(8.5).heightOfString(desc, { width: cols[2].w - 6 }) + 8);
       if (y + h > 720) pageBreak();
       if (alt) doc.rect(PAGE.left, y, W, h).fill(COLORS.pale);
@@ -355,13 +375,14 @@ export async function genererDocumentPdf(
       if (y > 660) pageBreak();
       const bx = PAGE.right - 230;
       const rows: [string, string, boolean?][] = [];
+      (to.detail || []).forEach((d) => rows.push([d.label, formatAmount(d.montant, devise)]));
       if ((to.mainDoeuvre || 0) > 0) rows.push(["Dont main d'œuvre", formatAmount(to.mainDoeuvre, devise)]);
       rows.push(["Total HT", formatAmount(to.totalHT, devise)]);
       if ((to.remise || 0) > 0) {
         rows.push(["Remise", `- ${formatAmount(to.remise, devise)}`]);
         rows.push(["HT avec remise", formatAmount((to.totalHT || 0) - (to.remise || 0), devise)]);
       }
-      rows.push(["TVA", formatAmount(to.totalTVA, devise)]);
+      rows.push([to.labelTVA || "TVA", formatAmount(to.totalTVA, devise)]);
       rows.push(["TOTAL TTC", formatAmount(to.totalTTC, devise), true]);
       if ((to.totalPaye || 0) > 0) rows.push(["Payé", formatAmount(to.totalPaye, devise)]);
       if ((to.resteAPaye || 0) > 0) rows.push(["Reste à payer", formatAmount(to.resteAPaye, devise), true]);
@@ -392,6 +413,63 @@ export async function genererDocumentPdf(
       y += 18;
     }
 
+    // ---------- Historique des règlements (reçus) ----------
+    if (data.historique?.length) {
+      const hcols = [
+        { label: "Reçu", w: 105 },
+        { label: "Date", w: 65 },
+        { label: "Mode", w: 80 },
+        { label: "Référence", w: 95 },
+        { label: "Montant", w: 90, align: "right" as const },
+        { label: "Statut", w: 60, align: "center" as const },
+      ];
+      const hH = 16;
+      const lignesH = data.historique.length * hH;
+      if (y + 40 + lignesH > 720) {
+        doc.addPage();
+        y = 80;
+      }
+      doc.font("Helvetica-Bold").fontSize(9.5).fillColor(COLORS.secondary)
+        .text("Historique des règlements", PAGE.left, y);
+      y += 15;
+
+      doc.rect(PAGE.left, y, W, hH).fill(COLORS.secondary);
+      let hx = PAGE.left;
+      hcols.forEach((c) => {
+        doc.font("Helvetica-Bold").fontSize(8).fillColor("#FFFFFF")
+          .text(c.label, hx + 3, y + 4, { width: c.w - 6, align: c.align || "left", lineBreak: false });
+        hx += c.w;
+      });
+      y += hH;
+
+      for (const h of data.historique) {
+        if (y + hH > 720) {
+          doc.addPage();
+          y = 80;
+        }
+        if (h.courant) doc.rect(PAGE.left, y, W, hH).fill("#FBEAE9");
+        const vals = [
+          `${h.numero || "—"}${h.courant ? "  (reçu courant)" : ""}`,
+          fmtDate(h.date),
+          h.libelle || "—",
+          h.reference || "—",
+          formatAmount(h.montant, devise),
+          h.annule ? "Annulé" : "Valide",
+        ];
+        hx = PAGE.left;
+        hcols.forEach((c, ci) => {
+          doc.font(h.courant ? "Helvetica-Bold" : "Helvetica").fontSize(8)
+            .fillColor(ci === 5 && h.annule ? COLORS.primary : COLORS.ink)
+            .text(vals[ci], hx + 3, y + 4, { width: c.w - 6, align: c.align || "left", lineBreak: false });
+          hx += c.w;
+        });
+        doc.moveTo(PAGE.left, y + hH).lineTo(PAGE.right, y + hH)
+          .strokeColor(COLORS.line).lineWidth(0.5).stroke();
+        y += hH;
+      }
+      y += 12;
+    }
+
     // ---------- Signatures ----------
     y = Math.max(y + 30, doc.y + 20);
     if (y > 700) {
@@ -419,6 +497,15 @@ export async function genererDocumentPdf(
     const pied = stripHtml(entreprise?.piedDePage) || "Merci de votre confiance";
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
+      // Filigrane « ANNULÉ » sur chaque page d'un document annulé
+      if (data.annule) {
+        doc.save();
+        doc.opacity(0.09);
+        doc.font("Helvetica-Bold").fontSize(90).fillColor(COLORS.primary);
+        doc.rotate(-38, { origin: [297.5, 421] });
+        doc.text("ANNULÉ", 55, 385, { width: 485, align: "center", lineBreak: false });
+        doc.restore();
+      }
       if (afficherEntete) {
         doc.moveTo(PAGE.left, 762).lineTo(PAGE.right, 762)
           .strokeColor(COLORS.line).lineWidth(0.7).stroke();

@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       numCommande,
       reference: l.reference,
       articleM: l.articleM,
+      articleId: l.articleId || undefined,
       description: l.description,
       quantite: Number(l.quantite) || 0,
       prixUnitaire: Number(l.prixUnitaire) || 0,

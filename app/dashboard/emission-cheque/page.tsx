@@ -6,6 +6,7 @@ import axios from "axios";
 import dayjs from "dayjs";
 import { fmtDate, fmtMontant, MODES_REGLEMENT } from "@/lib/format";
 import FicheFournisseurModal from "@/components/tiers/FicheFournisseurModal";
+import PdfPreviewModal from "@/components/print/PdfPreviewModal";
 
 /**
  * GESTION D'ÉMISSION DE CHÈQUE (FEN_EMISSION_DE_CHEQUE) :
@@ -27,17 +28,35 @@ export default function EmissionChequePage() {
   const [showFournisseur, setShowFournisseur] = useState(false);
   const [achatsDispo, setAchatsDispo] = useState<any[]>([]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
-  const [form, setForm] = useState({ banque: "", numCheque: "", alOrdreDe: "", delaisDeReglement: "", modeReglement: "Chèque" });
+  const [form, setForm] = useState({
+    banque: "", numCheque: "", numVirement: "", numTel: "",
+    alOrdreDe: "", delaisDeReglement: "", modeReglement: "Chèque",
+  });
 
   // Décaissement
   const [showDec, setShowDec] = useState(false);
   const [emissionSel, setEmissionSel] = useState<any>(null);
-  const [dec, setDec] = useState({ montantPaye: 0, modeReglement: "Chèque", banque: "", numCheque: "" });
+  const [dec, setDec] = useState({
+    montantPaye: 0, modeReglement: "Chèque",
+    banque: "", numCheque: "", numVirement: "", numTel: "",
+  });
 
   // Renvoi au service achat
   const [renvoiSel, setRenvoiSel] = useState<any>(null);
   const [motifRenvoi, setMotifRenvoi] = useState("");
   const [erreurRenvoi, setErreurRenvoi] = useState("");
+
+  // Reçus de décaissement
+  const [recusSel, setRecusSel] = useState<any>(null);
+  const [paiements, setPaiements] = useState<any[]>([]);
+  const [apercuRecu, setApercuRecu] = useState<string | null>(null);
+
+  // Demande d'annulation de décaissement
+  const [annulationSel, setAnnulationSel] = useState<any>(null);
+  const [motifAnnulation, setMotifAnnulation] = useState("");
+  const [erreurAnnulation, setErreurAnnulation] = useState("");
+
+  // Historique des demandes : page dédiée /dashboard/demandes-annulation
 
   const charger = useCallback(() => {
     axios.get("/api/emissions", { params: { du, au } })
@@ -76,7 +95,10 @@ export default function EmissionChequePage() {
       setShowNew(false);
       setSelection(new Set());
       setAchatsDispo([]);
-      setForm({ banque: "", numCheque: "", alOrdreDe: "", delaisDeReglement: "", modeReglement: "Chèque" });
+      setForm({
+        banque: "", numCheque: "", numVirement: "", numTel: "",
+        alOrdreDe: "", delaisDeReglement: "", modeReglement: "Chèque",
+      });
       charger();
     } catch (e: any) {
       alert(e.response?.data?.message || "Erreur lors de l'émission");
@@ -85,7 +107,12 @@ export default function EmissionChequePage() {
 
   const ouvrirDecaissement = (e: any) => {
     setEmissionSel(e);
-    setDec({ montantPaye: e.resteAPaye || e.montantTotal, modeReglement: e.modeReglement || "Chèque", banque: e.banque || "", numCheque: e.numCheque || "" });
+    setDec({
+      montantPaye: e.resteAPaye || e.montantTotal,
+      modeReglement: e.modeReglement || "Chèque",
+      banque: e.banque || "", numCheque: e.numCheque || "",
+      numVirement: e.numVirement || "", numTel: e.numTel || "",
+    });
     setShowDec(true);
   };
 
@@ -96,6 +123,30 @@ export default function EmissionChequePage() {
       charger();
     } catch (e: any) {
       alert(e.response?.data?.message || "Décaissement impossible");
+    }
+  };
+
+  const ouvrirRecus = async (e: any) => {
+    setRecusSel(e);
+    setPaiements([]);
+    try {
+      const r = await axios.get(`/api/emissions/${e._id}/paiements`);
+      setPaiements(r.data);
+    } catch {
+      alert("Impossible de charger les décaissements");
+    }
+  };
+
+  const demanderAnnulation = async () => {
+    setErreurAnnulation("");
+    try {
+      await axios.post(`/api/paiements-fournisseurs/${annulationSel._id}/annulation`, {
+        motif: motifAnnulation,
+      });
+      setAnnulationSel(null);
+      ouvrirRecus(recusSel);
+    } catch (e: any) {
+      setErreurAnnulation(e.response?.data?.message || "Demande impossible");
     }
   };
 
@@ -110,16 +161,30 @@ export default function EmissionChequePage() {
     }
   };
 
-  const peutDecaisser = ["admin", "adminsuper", "comptable", "caisse"].includes(me?.type);
-  const peutRenvoyer = ["admin", "adminsuper", "comptable"].includes(me?.type);
+  const aAction = (code: string) =>
+    me?.permissions?.actions?.includes("*") || me?.permissions?.actions?.includes(code);
+  const peutDecaisser = aAction("decaissement");
+  const peutRenvoyer = aAction("renvoi_emission");
+  const estAdmin = ["admin", "adminsuper"].includes(me?.type);
+  const nomComplet = `${me?.nom || ""} ${me?.prenom || ""}`.trim();
+
+  const BADGES_ANNULATION: Record<string, { label: string; bg: string }> = {
+    en_attente: { label: "En attente", bg: "warning" },
+    approuvee: { label: "Approuvée", bg: "success" },
+    rejetee: { label: "Rejetée", bg: "secondary" },
+  };
 
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <h3 className="mb-0 titre-page">Gestion d&apos;émission de chèque</h3>
-        <Button onClick={() => setShowNew(true)}>
-          <i className="bi bi-plus-lg me-1"></i>Nouvelle émission
-        </Button>
+        <div className="d-flex gap-2">
+          {(estAdmin || me?.type === "achat") && (
+            <Button onClick={() => setShowNew(true)}>
+              <i className="bi bi-plus-lg me-1"></i>Nouvelle émission
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card className="shadow-sm mb-3">
@@ -143,7 +208,7 @@ export default function EmissionChequePage() {
           <thead>
             <tr>
               <th>N° Émission</th><th>Date</th><th>Fournisseur</th><th>Banque</th>
-              <th>N° Chèque</th><th className="text-end">Montant</th>
+              <th>Référence</th><th className="text-end">Montant</th>
               <th className="text-end">Payé</th><th className="text-end">Reste</th>
               <th>Statut</th><th></th>
             </tr>
@@ -155,7 +220,7 @@ export default function EmissionChequePage() {
                 <td>{fmtDate(e.datePaiement)}</td>
                 <td>{e.fournisseur}</td>
                 <td>{e.banque}</td>
-                <td>{e.numCheque}</td>
+                <td>{e.numCheque || e.numVirement || e.numTel}</td>
                 <td className="text-end">{fmtMontant(e.montantTotal)}</td>
                 <td className="text-end">{fmtMontant(e.totalPaye)}</td>
                 <td className="text-end">{fmtMontant(e.resteAPaye)}</td>
@@ -171,7 +236,13 @@ export default function EmissionChequePage() {
                       )
                       : <Badge bg="info">Transféré compta</Badge>}
                 </td>
-                <td>
+                <td className="text-nowrap">
+                  {(e.totalPaye || 0) > 0 && (
+                    <Button size="sm" variant="outline-primary" className="me-1"
+                      title="Reçus de décaissement" onClick={() => ouvrirRecus(e)}>
+                      <i className="bi bi-receipt me-1"></i>Reçu
+                    </Button>
+                  )}
                   {e.statut !== "decaisse" && e.statut !== "renvoyee" && peutDecaisser && (
                     <Button size="sm" variant="outline-success" onClick={() => ouvrirDecaissement(e)}>
                       <i className="bi bi-cash me-1"></i>Décaisser
@@ -218,14 +289,30 @@ export default function EmissionChequePage() {
                 {MODES_REGLEMENT.map((m) => <option key={m}>{m}</option>)}
               </Form.Select>
             </Col>
-            <Col xs={12} sm={6} md={3}>
-              <Form.Label>Banque</Form.Label>
-              <Form.Control value={form.banque} onChange={(e) => setForm({ ...form, banque: e.target.value })} />
-            </Col>
-            <Col xs={12} sm={6} md={3}>
-              <Form.Label>N° Chèque</Form.Label>
-              <Form.Control value={form.numCheque} onChange={(e) => setForm({ ...form, numCheque: e.target.value })} />
-            </Col>
+            {["Chèque", "Virement", "Carte bancaire"].includes(form.modeReglement) && (
+              <Col xs={12} sm={6} md={3}>
+                <Form.Label>Banque</Form.Label>
+                <Form.Control value={form.banque} onChange={(e) => setForm({ ...form, banque: e.target.value })} />
+              </Col>
+            )}
+            {form.modeReglement === "Chèque" && (
+              <Col xs={12} sm={6} md={3}>
+                <Form.Label>N° Chèque</Form.Label>
+                <Form.Control value={form.numCheque} onChange={(e) => setForm({ ...form, numCheque: e.target.value })} />
+              </Col>
+            )}
+            {form.modeReglement === "Virement" && (
+              <Col xs={12} sm={6} md={3}>
+                <Form.Label>N° Virement</Form.Label>
+                <Form.Control value={form.numVirement} onChange={(e) => setForm({ ...form, numVirement: e.target.value })} />
+              </Col>
+            )}
+            {form.modeReglement === "Mobile Money" && (
+              <Col xs={12} sm={6} md={3}>
+                <Form.Label>N° de téléphone</Form.Label>
+                <Form.Control value={form.numTel} onChange={(e) => setForm({ ...form, numTel: e.target.value })} />
+              </Col>
+            )}
             <Col xs={12} sm={6} md={4}>
               <Form.Label>À l&apos;ordre de</Form.Label>
               <Form.Control value={form.alOrdreDe} onChange={(e) => setForm({ ...form, alOrdreDe: e.target.value })} />
@@ -294,12 +381,34 @@ export default function EmissionChequePage() {
               {MODES_REGLEMENT.map((m) => <option key={m}>{m}</option>)}
             </Form.Select>
           </Form.Group>
-          <Row className="g-2">
-            <Col><Form.Label>Banque</Form.Label>
-              <Form.Control value={dec.banque} onChange={(e) => setDec({ ...dec, banque: e.target.value })} /></Col>
-            <Col><Form.Label>N° Chèque</Form.Label>
-              <Form.Control value={dec.numCheque} onChange={(e) => setDec({ ...dec, numCheque: e.target.value })} /></Col>
-          </Row>
+          {dec.modeReglement === "Chèque" && (
+            <Row className="g-2">
+              <Col><Form.Label>Banque</Form.Label>
+                <Form.Control value={dec.banque} onChange={(e) => setDec({ ...dec, banque: e.target.value })} /></Col>
+              <Col><Form.Label>N° Chèque</Form.Label>
+                <Form.Control value={dec.numCheque} onChange={(e) => setDec({ ...dec, numCheque: e.target.value })} /></Col>
+            </Row>
+          )}
+          {dec.modeReglement === "Virement" && (
+            <Row className="g-2">
+              <Col><Form.Label>Banque</Form.Label>
+                <Form.Control value={dec.banque} onChange={(e) => setDec({ ...dec, banque: e.target.value })} /></Col>
+              <Col><Form.Label>N° Virement</Form.Label>
+                <Form.Control value={dec.numVirement} onChange={(e) => setDec({ ...dec, numVirement: e.target.value })} /></Col>
+            </Row>
+          )}
+          {dec.modeReglement === "Mobile Money" && (
+            <Form.Group>
+              <Form.Label>N° de téléphone</Form.Label>
+              <Form.Control value={dec.numTel} onChange={(e) => setDec({ ...dec, numTel: e.target.value })} />
+            </Form.Group>
+          )}
+          {dec.modeReglement === "Carte bancaire" && (
+            <Form.Group>
+              <Form.Label>Banque</Form.Label>
+              <Form.Control value={dec.banque} onChange={(e) => setDec({ ...dec, banque: e.target.value })} />
+            </Form.Group>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDec(false)}>Annuler</Button>
@@ -326,6 +435,96 @@ export default function EmissionChequePage() {
           <Button variant="secondary" onClick={() => setRenvoiSel(null)}>Annuler</Button>
           <Button variant="warning" onClick={renvoyer} disabled={!motifRenvoi.trim()}>
             Renvoyer
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Reçus de décaissement */}
+      <Modal show={!!recusSel} onHide={() => setRecusSel(null)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>Décaissements — {recusSel?.numEmission}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p className="mb-2">Fournisseur : <strong>{recusSel?.fournisseur}</strong></p>
+          <Table responsive hover className="table-novasys mb-0">
+            <thead>
+              <tr><th>Date</th><th>Mode</th><th>Référence</th>
+                <th className="text-end">Montant</th><th>Reçu de</th><th>Décaissé par</th><th></th></tr>
+            </thead>
+            <tbody>
+              {paiements.map((p) => (
+                <tr key={p._id}>
+                  <td>{fmtDate(p.datePaiement)}</td>
+                  <td>{p.modeReglement}</td>
+                  <td>{[p.banque, p.numCheque || p.numVirement || p.numTel].filter(Boolean).join(" — ")}</td>
+                  <td className="text-end fw-semibold">{fmtMontant(p.montantPaye)}</td>
+                  <td>{p.recuDe}</td>
+                  <td>{p.payePar}</td>
+                  <td className="text-nowrap">
+                    {p.annule && <Badge bg="danger" className="me-1">Annulé</Badge>}
+                    {!p.annule && p.demandeAnnulationStatut && (
+                      <Badge bg={BADGES_ANNULATION[p.demandeAnnulationStatut]?.bg || "secondary"}
+                        text={p.demandeAnnulationStatut === "en_attente" ? "dark" : undefined}
+                        className="me-1">
+                        {BADGES_ANNULATION[p.demandeAnnulationStatut]?.label || p.demandeAnnulationStatut}
+                      </Badge>
+                    )}
+                    <Button size="sm" variant="outline-success" className="me-1"
+                      onClick={() => setApercuRecu(p._id)}>
+                      <i className="bi bi-file-earmark-pdf me-1"></i>Aperçu
+                    </Button>
+                    {!p.annule && p.demandeAnnulationStatut !== "en_attente" &&
+                      (estAdmin || (peutDecaisser && p.payePar === nomComplet)) && (
+                      <Button size="sm" variant="outline-danger" title="Demander l'annulation"
+                        onClick={() => { setAnnulationSel(p); setMotifAnnulation(""); setErreurAnnulation(""); }}>
+                        <i className="bi bi-x-circle"></i>
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {!paiements.length && (
+                <tr><td colSpan={7} className="text-center text-muted py-3">Aucun décaissement</td></tr>
+              )}
+            </tbody>
+          </Table>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setRecusSel(null)}>Fermer</Button>
+        </Modal.Footer>
+      </Modal>
+
+      <PdfPreviewModal
+        type="recu"
+        id={apercuRecu}
+        show={!!apercuRecu}
+        onHide={() => setApercuRecu(null)}
+      />
+
+      {/* Demande d'annulation d'un décaissement */}
+      <Modal show={!!annulationSel} onHide={() => setAnnulationSel(null)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Demander l&apos;annulation du décaissement</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {erreurAnnulation && <div className="alert alert-danger">{erreurAnnulation}</div>}
+          <p>
+            Montant : <strong>{fmtMontant(annulationSel?.montantPaye)} FCFA</strong><br />
+            Reçu de : <strong>{annulationSel?.recuDe}</strong><br />
+            <span className="text-muted small">
+              La demande sera transmise à l&apos;administrateur pour approbation.
+            </span>
+          </p>
+          <Form.Group>
+            <Form.Label>Motif de la demande *</Form.Label>
+            <Form.Control as="textarea" rows={3} value={motifAnnulation}
+              onChange={(e) => setMotifAnnulation(e.target.value)} />
+          </Form.Group>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setAnnulationSel(null)}>Annuler</Button>
+          <Button variant="danger" onClick={demanderAnnulation} disabled={!motifAnnulation.trim()}>
+            Envoyer la demande
           </Button>
         </Modal.Footer>
       </Modal>

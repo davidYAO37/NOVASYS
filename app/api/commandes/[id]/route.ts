@@ -77,9 +77,17 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
 
   const data = await req.json();
   const { lignes, ...entete } = data;
-  delete entete.numCommande;
-  delete entete.saisiePar;
-  delete entete.creerPar;
+  // Circuit (transfert, traitement, renvoi, clôture) et montants : gérés par
+  // les routes dédiées et le recalcul, jamais par la fiche
+  for (const k of [
+    "numCommande", "saisiePar", "creerPar", "statutC", "serviceAchat",
+    "envoyeAchatPar", "envoyeLe", "renvoyee", "motifRenvoi", "renvoyeLe",
+    "renvoyePar", "clotureManuelle", "clotureLe", "cloturePar", "factureEditee",
+    "bonAchat", "numAchat", "totalPaye", "totalHT", "remise", "totalAvecRemise",
+    "totalTVA", "totalTTC", "resteAPaye", "heureAjout",
+  ]) {
+    delete entete[k];
+  }
 
   if (entete.numComm !== undefined) {
     const numComm = (entete.numComm || "").trim();
@@ -123,6 +131,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
         lignesRecalc.map((l: any) => ({
           ...l,
           _id: undefined,
+          articleId: l.articleId || undefined,
           commandeId: commande._id,
           numCommande: commande.numCommande,
         }))

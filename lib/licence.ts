@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { IEntreprise } from "@/models/entreprise";
 
 /**
@@ -102,7 +102,11 @@ export function verifyLicenceKey(key: string): {
     const expected = createHmac("sha256", secret)
       .update(JSON.stringify(payload))
       .digest("hex");
-    if (signature !== expected) return { valid: false };
+    const sigBuf = Buffer.from(String(signature), "utf8");
+    const expBuf = Buffer.from(expected, "utf8");
+    if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+      return { valid: false };
+    }
     return { valid: true, payload };
   } catch {
     return { valid: false };

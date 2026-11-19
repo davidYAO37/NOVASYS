@@ -21,6 +21,8 @@ export default function FournisseursPage() {
   const [showDetail, setShowDetail] = useState(false);
   const [message, setMessage] = useState("");
   const [apercuId, setApercuId] = useState<string | null>(null);
+  const [me, setMe] = useState<any>(null);
+  const [miens, setMiens] = useState(false);
 
   const charger = useCallback(() => {
     axios.get("/api/fournisseurs", { params: { q: recherche || undefined } })
@@ -28,7 +30,13 @@ export default function FournisseursPage() {
       .catch(() => {});
   }, [recherche]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    charger();
+    axios.get("/api/me").then((r) => setMe(r.data?.user)).catch(() => {});
+  }, [charger]);
+
+  const estCommercial = me?.type === "commercial";
+  const visibles = estCommercial && miens ? fournisseurs.filter((f) => f.estMien) : fournisseurs;
 
   const ouvrirFiche = (f?: any) => {
     setFicheInit(f || null);
@@ -63,12 +71,24 @@ export default function FournisseursPage() {
       {message && <div className="alert alert-danger">{message}</div>}
 
       <Card className="shadow-sm mb-3">
-        <Card.Body>
+        <Card.Body className="d-flex gap-2 flex-wrap">
           <Form.Control
+            className="flex-grow-1"
             placeholder="Rechercher (nom, raison sociale, téléphone)..."
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
           />
+          {estCommercial && (
+            <Form.Select
+              aria-label="Afficher"
+              style={{ width: "auto" }}
+              value={miens ? "miens" : "tous"}
+              onChange={(e) => setMiens(e.target.value === "miens")}
+            >
+              <option value="tous">Tous les fournisseurs</option>
+              <option value="miens">Mes fournisseurs (créés ou déjà travaillés)</option>
+            </Form.Select>
+          )}
         </Card.Body>
       </Card>
 
@@ -85,10 +105,13 @@ export default function FournisseursPage() {
             </tr>
           </thead>
           <tbody>
-            {fournisseurs.map((f) => (
+            {visibles.map((f) => (
               <tr key={f._id}>
                 <td className="fw-semibold" style={{ cursor: "pointer" }} onClick={() => voirDetail(f._id)}>
                   {f.nomPren}
+                  {estCommercial && f.estMien && (
+                    <Badge bg="success" className="ms-2">Mon fournisseur</Badge>
+                  )}
                 </td>
                 <td>{f.raisonSociale}</td>
                 <td>{f.telephone || f.portable}</td>
@@ -99,19 +122,31 @@ export default function FournisseursPage() {
                     : <Badge bg="success">0</Badge>}
                 </td>
                 <td>
-                  <Button size="sm" variant="outline-primary" className="me-1" title="Commandes" onClick={() => voirDetail(f._id)}>
-                    <i className="bi bi-eye"></i>
-                  </Button>
-                  <Button size="sm" variant="outline-secondary" className="me-1" title="Modifier" onClick={() => ouvrirFiche(f)}>
-                    <i className="bi bi-pencil"></i>
-                  </Button>
+                  {(() => {
+                    const interdit = estCommercial && !f.estMien && f.creerPar;
+                    const titreInterdit = "Fournisseur d'un autre commercial — consultation non autorisée";
+                    return (
+                      <>
+                        <Button size="sm" variant="outline-primary" className="me-1"
+                          title={interdit ? titreInterdit : "Commandes"}
+                          disabled={interdit} onClick={() => voirDetail(f._id)}>
+                          <i className="bi bi-eye"></i>
+                        </Button>
+                        <Button size="sm" variant="outline-secondary" className="me-1"
+                          title={interdit ? titreInterdit : "Modifier"}
+                          disabled={interdit} onClick={() => ouvrirFiche(f)}>
+                          <i className="bi bi-pencil"></i>
+                        </Button>
+                      </>
+                    );
+                  })()}
                   <Button size="sm" variant="outline-danger" title="Supprimer" onClick={() => supprimer(f._id)}>
                     <i className="bi bi-trash"></i>
                   </Button>
                 </td>
               </tr>
             ))}
-            {!fournisseurs.length && (
+            {!visibles.length && (
               <tr><td colSpan={6} className="text-center text-muted py-4">Aucun fournisseur</td></tr>
             )}
           </tbody>
